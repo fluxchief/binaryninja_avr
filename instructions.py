@@ -2803,7 +2803,7 @@ class Instruction_ROL(Instruction):
                 self._operands[0].symbolic_value,
                 il.and_expr(
                     1,
-                    binaryninja.LLIL_TEMP(0),
+                    il.reg(1, binaryninja.LLIL_TEMP(0)),
                     il.const(1, 0xFF)
                 ),
                 flags='HSVNZ'
@@ -2817,7 +2817,7 @@ class Instruction_ROL(Instruction):
                     1,
                     il.logical_shift_right(
                         1,
-                        binaryninja.LLIL_TEMP(0),
+                        il.reg(1, binaryninja.LLIL_TEMP(0)),
                         il.const(1, 8)
                     ),
                     il.const(1, 1)
@@ -2870,7 +2870,7 @@ class Instruction_ROR(Instruction):
                 self._operands[0].symbolic_value,
                 il.and_expr(
                     1,
-                    binaryninja.LLIL_TEMP(0),
+                    il.reg(1, binaryninja.LLIL_TEMP(0)),
                     il.const(1, 0xFF)
                 ),
                 flags='HSVNZ'
