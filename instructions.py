@@ -1212,7 +1212,7 @@ class Instruction_ELPM_II(Instruction):
 
     @staticmethod
     def instruction_signature():
-        return '1001 010d dddd 0110'.replace(' ', '')
+        return '1001 000d dddd 0110'.replace(' ', '')
 
     def get_llil(self, il):
         il.append(
