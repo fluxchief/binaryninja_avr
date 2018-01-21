@@ -228,7 +228,9 @@ class AVR(binaryninja.Architecture):
                 v
             )
         elif (isinstance(ins, instructions.Instruction_ICALL) or
-                isinstance(ins, instructions.Instruction_EICALL)):
+                isinstance(ins, instructions.Instruction_EICALL) or
+                isinstance(ins, instructions.Instruction_IJMP) or
+                isinstance(ins, instructions.Instruction_EIJMP)):
             nfo.add_branch(BranchType.IndirectBranch)
         else:
             # TODO: Doublecheck that there are no more controlflow modifying

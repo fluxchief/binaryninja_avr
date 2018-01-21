@@ -482,22 +482,6 @@ class Instruction_ASR(Instruction):
         )
 
 
-class Instruction_BCLR(Instruction):
-    @staticmethod
-    def instruction_signature():
-        return '1001 0100 1sss 1000'.replace(' ', '')
-
-    def get_llil(self, il):
-        flags = ['C', 'Z', 'N', 'V', 'S', 'H', 'T', 'I']
-        il.append(
-            il.set_flag(
-                flags[self._operands[0].immediate_value],
-                il.const(1, 0),
-                '*'
-            )
-        )
-
-
 class Instruction_BLD(Instruction):
     register_order = ['d', 'b']
 
@@ -521,46 +505,6 @@ class Instruction_BLD(Instruction):
                 ),
             )
         )
-
-
-class Instruction_BRBC(Instruction):
-    @classmethod
-    def args_to_operands(cls, chip, args):
-        k = args['k']
-        if k > 64:
-            k -= 128
-        return [
-            operand.OperandImmediate(chip, args['s']),
-            operand.OperandRelativeAddress(chip, k)
-        ]
-
-    @staticmethod
-    def instruction_signature():
-        return '1111 01kk kkkk ksss'.replace(' ', '')
-
-    def get_llil(self, il):
-        # TODO
-        il.append(il.unimplemented())
-
-
-class Instruction_BRBS(Instruction):
-    @classmethod
-    def args_to_operands(cls, chip, args):
-        k = args['k']
-        if k > 64:
-            k -= 128
-        return [
-            operand.OperandImmediate(chip, args['s']),
-            operand.OperandRelativeAddress(chip, k)
-        ]
-
-    @staticmethod
-    def instruction_signature():
-        return '1111 00kk kkkk ksss'.replace(' ', '')
-
-    def get_llil(self, il):
-        # TODO
-        il.append(il.unimplemented())
 
 
 class Instruction_BR_Abstract(Instruction):
@@ -787,22 +731,6 @@ class Instruction_BRVS(Instruction_BR_Abstract):
 
     def get_llil_condition(self, il):
         return il.compare_equal(1, il.const(1, 0), il.flag('V'))
-
-
-class Instruction_BSET(Instruction):
-    @staticmethod
-    def instruction_signature():
-        return '1001 0100 0sss 1000'.replace(' ', '')
-
-    def get_llil(self, il):
-        flags = ['C', 'Z', 'N', 'V', 'S', 'H', 'T', 'I']
-        il.append(
-            il.set_flag(
-                flags[self._operands[0].immediate_value],
-                il.const(1, 1),
-                '*'
-            )
-        )
 
 
 class Instruction_BST(Instruction):
@@ -1108,7 +1036,7 @@ class Instruction_CPSE(Instruction):
             # We only got this instruction, WHY!
             # Assume next instruction has two bytes
             next_len = 2
-            binaryninja.log.log_error(
+            binaryninja.log.log_warn(
                 "0x{:X}: Lifting: CPSE: We only got 2 bytes but we need more to predict the length of the next instruction".format(self._addr))
         else:
             next_len = parse_instruction(self._chip, self._data[2:]).length()
@@ -1164,11 +1092,77 @@ class Instruction_EICALL(Instruction):
     def instruction_signature():
         return '1001 0101 0001 1001'.replace(' ', '')
 
+    def get_llil(self, il):
+        il.append(
+            il.call(
+                il.or_expr(
+                    3,
+                    il.shift_left(
+                        3,
+                        il.load(
+                            1,
+                            il.const(
+                                3,
+                                self._chip.get_register_offset(
+                                    'EIND') + RAM_SEGMENT_BEGIN
+                            )
+                        ),
+                        il.const(1, 16)
+                    ),
+                    il.load(
+                        2,
+                        il.add(
+                            2,
+                            il.shift_left(
+                                2,
+                                il.zero_extend(2, il.reg(1, 'r31')),
+                                il.const(2, 8)
+                            ),
+                            il.zero_extend(2, il.reg(1, 'r30'))
+                        )
+                    )
+                )
+            )
+        )
+
 
 class Instruction_EIJMP(Instruction):
     @staticmethod
     def instruction_signature():
         return '1001 0100 0001 1001'.replace(' ', '')
+
+    def get_llil(self, il):
+        il.append(
+            il.jump(
+                il.or_expr(
+                    3,
+                    il.shift_left(
+                        3,
+                        il.load(
+                            1,
+                            il.const(
+                                3,
+                                self._chip.get_register_offset(
+                                    'EIND') + RAM_SEGMENT_BEGIN
+                            )
+                        ),
+                        il.const(1, 16)
+                    ),
+                    il.load(
+                        2,
+                        il.add(
+                            2,
+                            il.shift_left(
+                                2,
+                                il.zero_extend(2, il.reg(1, 'r31')),
+                                il.const(2, 8)
+                            ),
+                            il.zero_extend(2, il.reg(1, 'r30'))
+                        )
+                    )
+                )
+            )
+        )
 
 
 class Instruction_ELPM_I(Instruction):
@@ -1187,9 +1181,13 @@ class Instruction_ELPM_I(Instruction):
                 'r0',
                 il.load(
                     1,
-                    il.add(
+                    il.or_expr(
                         3,
-                        il.unimplemented(),
+                        il.shift_left(
+                            3,
+                            get_ramp_register(il, self._chip, 'RAMPZ'),
+                            il.const(1, 16)
+                        ),
                         il.zero_extend(3, il.add(
                             2,
                             il.shift_left(
@@ -1221,9 +1219,13 @@ class Instruction_ELPM_II(Instruction):
                 self._operands[0].symbolic_value,
                 il.load(
                     1,
-                    il.add(
+                    il.or_expr(
                         3,
-                        il.unimplemented(),
+                        il.shift_left(
+                            3,
+                            get_ramp_register(il, self._chip, 'RAMPZ'),
+                            il.const(1, 16)
+                        ),
                         il.zero_extend(3, il.add(
                             2,
                             il.shift_left(
@@ -1255,9 +1257,13 @@ class Instruction_ELPM_III(Instruction):
                 self._operands[0].symbolic_value,
                 il.load(
                     1,
-                    il.add(
+                    il.or_expr(
                         3,
-                        il.unimplemented(),
+                        il.shift_left(
+                            3,
+                            get_ramp_register(il, self._chip, 'RAMPZ'),
+                            il.const(1, 16)
+                        ),
                         il.zero_extend(3, il.add(
                             2,
                             il.shift_left(
@@ -4292,12 +4298,6 @@ ALL_INSTRUCTIONS = [
     Instruction_TST,
     Instruction_WDR,
     Instruction_XCH,
-
-    # Low priority. We have better aliases for those functions
-    # Instruction_BRBC,
-    # Instruction_BRBS,
-    # Instruction_BCLR,
-    # Instruction_BSET,
 ]
 
 INSTRUCTIONS_BY_PREFIX = collections.defaultdict(
