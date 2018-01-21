@@ -9,11 +9,14 @@ import binaryninja_avr.chips.iotn48
 import binaryninja_avr.chips.iotn88
 import binaryninja_avr.chips.iox256a4u
 
-import binaryninja_avr.instructions
+from binaryninja_avr import instructions
 from binaryninja_avr.instructions import RAM_SEGMENT_BEGIN
-import binaryninja_avr.operand
 
 import binaryninja
+from binaryninja import (
+        BranchType, SegmentFlag, SectionSemantics, SymbolType,
+        LowLevelILFlagCondition, FlagRole
+)
 
 
 class AVR(binaryninja.Architecture):
@@ -91,35 +94,35 @@ class AVR(binaryninja.Architecture):
     }
 
     flag_roles = {
-        'C': binaryninja.enums.FlagRole.CarryFlagRole,
-        'Z': binaryninja.enums.FlagRole.ZeroFlagRole,
-        'N': binaryninja.enums.FlagRole.NegativeSignFlagRole,
-        'V': binaryninja.enums.FlagRole.OverflowFlagRole,
-        'S': binaryninja.enums.FlagRole.SpecialFlagRole,        # (N ^ V)
-        'H': binaryninja.enums.FlagRole.HalfCarryFlagRole,
-        'T': binaryninja.enums.FlagRole.SpecialFlagRole,        # Transfer bit (BLD/BST)
-        'I': binaryninja.enums.FlagRole.SpecialFlagRole         # Global interrupt enable
+        'C': FlagRole.CarryFlagRole,
+        'Z': FlagRole.ZeroFlagRole,
+        'N': FlagRole.NegativeSignFlagRole,
+        'V': FlagRole.OverflowFlagRole,
+        'S': FlagRole.SpecialFlagRole,        # (N ^ V)
+        'H': FlagRole.HalfCarryFlagRole,
+        'T': FlagRole.SpecialFlagRole,        # Transfer bit (BLD/BST)
+        'I': FlagRole.SpecialFlagRole         # Global interrupt enable
     }
 
     flags_required_for_flag_condition = {
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_E: ['Z'],              # Equal,      Z = 1
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_NE: ['Z'],             # NEq,        Z = 0
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_SLT: ['N', 'V'],       # < signed    N ^ V = 1
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_ULT: ['C'],            # < usigned   C = 1
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_SLE: ['N', 'V', 'Z'],  # <= signed   Z + (N ^ V) = 1
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_ULE: ['C', 'Z'],       # <= unsiged  C + Z = 1
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_SGE: ['N', 'V'],       # >= signed   N ^ V = 0
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_UGE: ['C'],            # >= unsigned C = 0
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_SGT: ['Z', 'N', 'V'],  # > signed    Z ? (N ^ V)
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_UGT: ['C'],            # > unsigned  C = 0
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_NEG: ['N'],            # is negative
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_POS: ['N'],            # positive, obv inverted
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_O: ['V'],              # overflow
-        binaryninja.enums.LowLevelILFlagCondition.LLFC_NO: ['V']              # no overflow
+        LowLevelILFlagCondition.LLFC_E: ['Z'],              # Equal,      Z = 1
+        LowLevelILFlagCondition.LLFC_NE: ['Z'],             # NEq,        Z = 0
+        LowLevelILFlagCondition.LLFC_SLT: ['N', 'V'],       # < signed    N ^ V = 1
+        LowLevelILFlagCondition.LLFC_ULT: ['C'],            # < usigned   C = 1
+        LowLevelILFlagCondition.LLFC_SLE: ['N', 'V', 'Z'],  # <= signed   Z + (N ^ V) = 1
+        LowLevelILFlagCondition.LLFC_ULE: ['C', 'Z'],       # <= unsiged  C + Z = 1
+        LowLevelILFlagCondition.LLFC_SGE: ['N', 'V'],       # >= signed   N ^ V = 0
+        LowLevelILFlagCondition.LLFC_UGE: ['C'],            # >= unsigned C = 0
+        LowLevelILFlagCondition.LLFC_SGT: ['Z', 'N', 'V'],  # > signed    Z ? (N ^ V)
+        LowLevelILFlagCondition.LLFC_UGT: ['C'],            # > unsigned  C = 0
+        LowLevelILFlagCondition.LLFC_NEG: ['N'],            # is negative
+        LowLevelILFlagCondition.LLFC_POS: ['N'],            # positive, obv inverted
+        LowLevelILFlagCondition.LLFC_O: ['V'],              # overflow
+        LowLevelILFlagCondition.LLFC_NO: ['V']              # no overflow
     }
 
     def _get_instruction(self, data, addr):
-        return binaryninja_avr.instructions.parse_instruction(self.chip, addr, data)
+        return instructions.parse_instruction(self.chip, addr, data)
 
     def perform_get_instruction_info(self, data, addr):
         nfo = binaryninja.InstructionInfo()
@@ -137,24 +140,24 @@ class AVR(binaryninja.Architecture):
         nfo.length = ins.length()
 
         if ins.__class__ in [
-            binaryninja_avr.instructions.Instruction_BRCC,
-            binaryninja_avr.instructions.Instruction_BRCS,
-            binaryninja_avr.instructions.Instruction_BREQ,
-            binaryninja_avr.instructions.Instruction_BRGE,
-            binaryninja_avr.instructions.Instruction_BRHC,
-            binaryninja_avr.instructions.Instruction_BRHS,
-            binaryninja_avr.instructions.Instruction_BRID,
-            binaryninja_avr.instructions.Instruction_BRIE,
-            binaryninja_avr.instructions.Instruction_BRLO,
-            binaryninja_avr.instructions.Instruction_BRLT,
-            binaryninja_avr.instructions.Instruction_BRMI,
-            binaryninja_avr.instructions.Instruction_BRNE,
-            binaryninja_avr.instructions.Instruction_BRPL,
-            binaryninja_avr.instructions.Instruction_BRSH,
-            binaryninja_avr.instructions.Instruction_BRTC,
-            binaryninja_avr.instructions.Instruction_BRTS,
-            binaryninja_avr.instructions.Instruction_BRVC,
-            binaryninja_avr.instructions.Instruction_BRVS,
+            instructions.Instruction_BRCC,
+            instructions.Instruction_BRCS,
+            instructions.Instruction_BREQ,
+            instructions.Instruction_BRGE,
+            instructions.Instruction_BRHC,
+            instructions.Instruction_BRHS,
+            instructions.Instruction_BRID,
+            instructions.Instruction_BRIE,
+            instructions.Instruction_BRLO,
+            instructions.Instruction_BRLT,
+            instructions.Instruction_BRMI,
+            instructions.Instruction_BRNE,
+            instructions.Instruction_BRPL,
+            instructions.Instruction_BRSH,
+            instructions.Instruction_BRTC,
+            instructions.Instruction_BRTS,
+            instructions.Instruction_BRVC,
+            instructions.Instruction_BRVS,
         ]:
             v = addr + ins.operands[0].immediate_value
             if v >= self.chip.ROM_SIZE:
@@ -163,46 +166,46 @@ class AVR(binaryninja.Architecture):
                 v += self.chip.ROM_SIZE
 
             nfo.add_branch(
-                binaryninja.BranchType.TrueBranch,
+                BranchType.TrueBranch,
                 v
             )
             nfo.add_branch(
-                binaryninja.BranchType.FalseBranch,
+                BranchType.FalseBranch,
                 addr + 2
             )
         elif ins.__class__ in [
-            binaryninja_avr.instructions.Instruction_CPSE,
-            binaryninja_avr.instructions.Instruction_SBRC,
-            binaryninja_avr.instructions.Instruction_SBRS,
-            binaryninja_avr.instructions.Instruction_SBIC,
-            binaryninja_avr.instructions.Instruction_SBIS,
+            instructions.Instruction_CPSE,
+            instructions.Instruction_SBRC,
+            instructions.Instruction_SBRS,
+            instructions.Instruction_SBIC,
+            instructions.Instruction_SBIS,
         ]:
             # TODO: This should skip a whole instruction but we don't know how
             # big the next instruction is (2 or 4 bytes).
             # Assume two bytes for now as it is pretty much always followed by a
             # rjmp
             nfo.add_branch(
-                binaryninja.BranchType.TrueBranch,
+                BranchType.TrueBranch,
                 addr + 4
             )
             nfo.add_branch(
-                binaryninja.BranchType.FalseBranch,
+                BranchType.FalseBranch,
                 addr + 2
             )
-        elif isinstance(ins, binaryninja_avr.instructions.Instruction_JMP):
+        elif isinstance(ins, instructions.Instruction_JMP):
             nfo.add_branch(
-                binaryninja.BranchType.UnconditionalBranch,
+                BranchType.UnconditionalBranch,
                 ins.operands[0].immediate_value
             )
-        elif isinstance(ins, binaryninja_avr.instructions.Instruction_CALL):
+        elif isinstance(ins, instructions.Instruction_CALL):
             nfo.add_branch(
-                binaryninja.BranchType.CallDestination,
+                BranchType.CallDestination,
                 ins.operands[0].immediate_value
             )
-        elif (isinstance(ins, binaryninja_avr.instructions.Instruction_RET) or
-                isinstance(ins, binaryninja_avr.instructions.Instruction_RETI)):
-            nfo.add_branch(binaryninja.BranchType.FunctionReturn)
-        elif (isinstance(ins, binaryninja_avr.instructions.Instruction_RCALL)):
+        elif (isinstance(ins, instructions.Instruction_RET) or
+                isinstance(ins, instructions.Instruction_RETI)):
+            nfo.add_branch(BranchType.FunctionReturn)
+        elif (isinstance(ins, instructions.Instruction_RCALL)):
             v = addr + ins.operands[0].immediate_value
             if v >= self.chip.ROM_SIZE:
                 v -= self.chip.ROM_SIZE
@@ -210,10 +213,10 @@ class AVR(binaryninja.Architecture):
                 v += self.chip.ROM_SIZE
 
             nfo.add_branch(
-                binaryninja.BranchType.CallDestination,
+                BranchType.CallDestination,
                 v
             )
-        elif (isinstance(ins, binaryninja_avr.instructions.Instruction_RJMP)):
+        elif (isinstance(ins, instructions.Instruction_RJMP)):
             v = addr + ins.operands[0].immediate_value
             if v >= self.chip.ROM_SIZE:
                 v -= self.chip.ROM_SIZE
@@ -221,12 +224,12 @@ class AVR(binaryninja.Architecture):
                 v += self.chip.ROM_SIZE
 
             nfo.add_branch(
-                binaryninja.BranchType.UnconditionalBranch,
+                BranchType.UnconditionalBranch,
                 v
             )
-        elif (isinstance(ins, binaryninja_avr.instructions.Instruction_ICALL) or
-                isinstance(ins, binaryninja_avr.instructions.Instruction_EICALL)):
-            nfo.add_branch(binaryninja.BranchType.IndirectBranch)
+        elif (isinstance(ins, instructions.Instruction_ICALL) or
+                isinstance(ins, instructions.Instruction_EICALL)):
+            nfo.add_branch(BranchType.IndirectBranch)
         else:
             # TODO: Doublecheck that there are no more controlflow modifying
             # operations.
@@ -294,15 +297,24 @@ class AVRBinaryView(binaryninja.BinaryView):
         self.add_auto_segment(
             0, AVR.chip.ROM_SIZE,
             0, len(self.raw),
-            binaryninja.SegmentFlag.SegmentReadable | binaryninja.SegmentFlag.SegmentExecutable
+            SegmentFlag.SegmentReadable | SegmentFlag.SegmentExecutable
         )
+        self.add_auto_section("ROM", 0, AVR.chip.ROM_SIZE,
+                              SectionSemantics.ReadOnlyCodeSectionSemantics)
 
         # Register / IO / Extended IO.
+        memory_mapped_registers_size = max([
+            a for a, _ in AVR.chip.all_registers.items()
+        ]) + 1
+
         self.add_auto_segment(
-            RAM_SEGMENT_BEGIN, max([a for a, _ in AVR.chip.all_registers.items()]) + 1,
+            RAM_SEGMENT_BEGIN, memory_mapped_registers_size,
             RAM_SEGMENT_BEGIN, 0,
-            binaryninja.SegmentFlag.SegmentReadable | binaryninja.SegmentFlag.SegmentWritable
+            SegmentFlag.SegmentReadable | SegmentFlag.SegmentWritable
         )
+        self.add_auto_section("Memory mapped registers (IO)", RAM_SEGMENT_BEGIN,
+                              memory_mapped_registers_size,
+                              SectionSemantics.ReadWriteDataSectionSemantics)
 
         # Make types.
         type_u8 = self.parse_type_string("uint8_t")[0]
@@ -311,7 +323,7 @@ class AVRBinaryView(binaryninja.BinaryView):
         for addr, name in AVR.chip.all_registers.items():
             self.define_data_var(RAM_SEGMENT_BEGIN + addr, type_u8)
             self.define_auto_symbol(binaryninja.types.Symbol(
-                binaryninja.enums.SymbolType.DataSymbol,
+                SymbolType.DataSymbol,
                 RAM_SEGMENT_BEGIN + addr,
                 name
             ))
@@ -320,8 +332,11 @@ class AVRBinaryView(binaryninja.BinaryView):
         self.add_auto_segment(
             RAM_SEGMENT_BEGIN + AVR.chip.RAM_STARTS_AT, AVR.chip.RAM_SIZE,
             RAM_SEGMENT_BEGIN, 0,
-            binaryninja.SegmentFlag.SegmentReadable | binaryninja.SegmentFlag.SegmentWritable
+            SegmentFlag.SegmentReadable | SegmentFlag.SegmentWritable
         )
+        self.add_auto_section("RAM", RAM_SEGMENT_BEGIN + AVR.chip.RAM_STARTS_AT,
+                              AVR.chip.RAM_SIZE,
+                              SectionSemantics.ReadWriteDataSectionSemantics)
 
         # Create ISR table.
         for i, v in enumerate(AVR.chip.INTERRUPT_VECTORS):

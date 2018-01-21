@@ -2,15 +2,14 @@ import abc
 import collections
 import struct
 
-import binaryninja_avr
-import binaryninja_avr.operand
-
+from binaryninja_avr import operand
 from binaryninja_avr.operand import RAM_SEGMENT_BEGIN
 
 try:
     import binaryninja
     from binaryninja.log import log
     from binaryninja.enums import LogLevel
+    from binaryninja import InstructionTextToken, InstructionTextTokenType
 except Exception:
     class LogLevel:
         AlertLog = 'ALERT'
@@ -82,16 +81,16 @@ class Instruction(object):
     @staticmethod
     def _arg_to_operand(chip, arg_type, arg):
         if arg_type in ('r', 'd'):
-            return binaryninja_avr.operand.OperandRegister(chip, arg)
+            return operand.OperandRegister(chip, arg)
         elif arg_type in ('R', 'D'):
-            return binaryninja_avr.operand.OperandRegisterWide(chip, arg)
+            return operand.OperandRegisterWide(chip, arg)
         elif arg_type in ('k', 'K', 'q', 'b'):
-            return binaryninja_avr.operand.OperandImmediate(chip, arg)
+            return operand.OperandImmediate(chip, arg)
         elif arg_type == 'A':
-            return binaryninja_avr.operand.OperandIORegister(chip, arg)
+            return operand.OperandIORegister(chip, arg)
         else:
             log(LogLevel.WarningLog, "{} not correctly supported yet".format(arg_type))
-            return binaryninja_avr.operand.OperandImmediate(chip, arg)
+            return operand.OperandImmediate(chip, arg)
 
     @classmethod
     def args_to_operands(cls, chip, args):
@@ -196,43 +195,43 @@ class Instruction(object):
         name = self.name()
 
         tokens = [
-            binaryninja.InstructionTextToken(binaryninja.InstructionTextTokenType.InstructionToken, name)
+            InstructionTextToken(InstructionTextTokenType.InstructionToken, name)
         ]
 
         if self.num_operands():
             # No idea if I should use the operand separator token here as well.
-            tokens.append(binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            tokens.append(InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ))
 
         for idx, op in enumerate(self.operands):
-            if (type(op) in [binaryninja_avr.operand.OperandRegister,
-                             binaryninja_avr.operand.OperandRegisterWide,
-                             binaryninja_avr.operand.OperandIORegister]):
-                op_token = binaryninja.InstructionTextToken(
-                    binaryninja.InstructionTextTokenType.RegisterToken,
+            if (type(op) in [operand.OperandRegister,
+                             operand.OperandRegisterWide,
+                             operand.OperandIORegister]):
+                op_token = InstructionTextToken(
+                    InstructionTextTokenType.RegisterToken,
                     op.symbolic_value
                 )
 
-            elif (type(op) in [binaryninja_avr.operand.OperandDirectAddress,
-                                  binaryninja_avr.operand.OperandRelativeAddress]):
+            elif (type(op) in [operand.OperandDirectAddress,
+                               operand.OperandRelativeAddress]):
                 v = op.immediate_value
-                if isinstance(op, binaryninja_avr.operand.OperandRelativeAddress):
+                if isinstance(op, operand.OperandRelativeAddress):
                     v += self._addr
                     if v >= self._chip.ROM_SIZE:
                         v -= self._chip.ROM_SIZE
                     if v < 0:
                         v += self._chip.ROM_SIZE
 
-                op_token = binaryninja.InstructionTextToken(
-                    binaryninja.InstructionTextTokenType.PossibleAddressToken,
+                op_token = InstructionTextToken(
+                    InstructionTextTokenType.PossibleAddressToken,
                     hex(int(v)),
                     value=v
                 )
-            elif type(op) is binaryninja_avr.operand.OperandImmediate:
-                op_token = binaryninja.InstructionTextToken(
-                    binaryninja.InstructionTextTokenType.IntegerToken,
+            elif type(op) is operand.OperandImmediate:
+                op_token = InstructionTextToken(
+                    InstructionTextTokenType.IntegerToken,
                     hex(int(op.immediate_value)),
                     value=op.immediate_value
                 )
@@ -243,8 +242,8 @@ class Instruction(object):
 
             tokens.append(op_token)
             if idx < self.num_operands() - 1:
-                tokens.append(binaryninja.InstructionTextToken(
-                    binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+                tokens.append(InstructionTextToken(
+                    InstructionTextTokenType.OperandSeparatorToken,
                     ', '
                 ))
 
@@ -257,9 +256,7 @@ class Instruction(object):
         il.append(il.unimplemented())
 
 
-"""
-IL Helper functions
-"""
+# IL Helper functions
 def do_u16_op_on_llil_tmp(il, r0, r1, il_op_fn, tmp_idx=0):
     il.append(
         il.set_reg(
@@ -287,6 +284,7 @@ def do_u16_op_on_llil_tmp(il, r0, r1, il_op_fn, tmp_idx=0):
         )
     )
 
+
 # Returns RAMP* register if existing, otherwise zero.
 def get_ramp_register(il, chip, ramp):
     # TODO: We 'support' RAMPX..RAMZ, however BN is unable to handle it in a way
@@ -304,6 +302,7 @@ def get_ramp_register(il, chip, ramp):
     else:
         return il.const(1, 0)
 
+
 def get_xyz_register(il, chip, r):
     r = r.upper()
     n = None
@@ -314,15 +313,16 @@ def get_xyz_register(il, chip, r):
     elif r == 'Z':
         n = 30
     else:
-        raise RuntimeError("Unknown XYZ register: \'{}\'".format(repr(R)))
+        raise RuntimeError("Unknown XYZ register: \'{}\'".format(repr(r)))
 
-    return il.or_expr(3,
+    return il.or_expr(
+        3,
         il.shift_left(
             3,
             get_ramp_register(il, chip, 'RAMP' + r),
             il.const(1, 16)
         ),
-        binaryninja_avr.operand.OperandRegisterWide(
+        operand.OperandRegisterWide(
             chip, n
         ).llil_read(il)
     )
@@ -383,8 +383,8 @@ class Instruction_ADIW(Instruction):
         d = args['d']
 
         return [
-            binaryninja_avr.operand.OperandRegisterWide(chip, d * 2 + 24),
-            binaryninja_avr.operand.OperandImmediate(chip, k)
+            operand.OperandRegisterWide(chip, d * 2 + 24),
+            operand.OperandImmediate(chip, k)
         ]
 
     @staticmethod
@@ -439,8 +439,8 @@ class Instruction_ANDI(Instruction):
         d = args['d']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16),
-            binaryninja_avr.operand.OperandImmediate(chip, k)
+            operand.OperandRegister(chip, d + 16),
+            operand.OperandImmediate(chip, k)
         ]
 
     @staticmethod
@@ -530,8 +530,8 @@ class Instruction_BRBC(Instruction):
         if k > 64:
             k -= 128
         return [
-            binaryninja_avr.operand.OperandImmediate(chip, args['s']),
-            binaryninja_avr.operand.OperandRelativeAddress(chip, k)
+            operand.OperandImmediate(chip, args['s']),
+            operand.OperandRelativeAddress(chip, k)
         ]
 
     @staticmethod
@@ -550,8 +550,8 @@ class Instruction_BRBS(Instruction):
         if k > 64:
             k -= 128
         return [
-            binaryninja_avr.operand.OperandImmediate(chip, args['s']),
-            binaryninja_avr.operand.OperandRelativeAddress(chip, k)
+            operand.OperandImmediate(chip, args['s']),
+            operand.OperandRelativeAddress(chip, k)
         ]
 
     @staticmethod
@@ -571,7 +571,7 @@ class Instruction_BR_Abstract(Instruction):
             k -= 128
 
         return [
-            binaryninja_avr.operand.OperandRelativeAddress(chip, k * 2 + 2)
+            operand.OperandRelativeAddress(chip, k * 2 + 2)
         ]
 
     @abc.abstractmethod
@@ -830,7 +830,7 @@ class Instruction_CALL(Instruction):
     @classmethod
     def args_to_operands(cls, chip, args):
         return [
-            binaryninja_avr.operand.OperandDirectAddress(chip, args['k'] * 2)
+            operand.OperandDirectAddress(chip, args['k'] * 2)
         ]
 
     @staticmethod
@@ -1077,8 +1077,8 @@ class Instruction_CPI(Instruction):
         d = args['d']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16),
-            binaryninja_avr.operand.OperandImmediate(chip, k)
+            operand.OperandRegister(chip, d + 16),
+            operand.OperandImmediate(chip, k)
         ]
 
     @staticmethod
@@ -1316,8 +1316,8 @@ class Instruction_FMUL(Instruction):
         d = args['d']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16),
-            binaryninja_avr.operand.OperandRegister(chip, r + 16)
+            operand.OperandRegister(chip, d + 16),
+            operand.OperandRegister(chip, r + 16)
         ]
 
     @staticmethod
@@ -1334,8 +1334,8 @@ class Instruction_FMULS(Instruction):
         d = args['d']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16),
-            binaryninja_avr.operand.OperandRegister(chip, r + 16)
+            operand.OperandRegister(chip, d + 16),
+            operand.OperandRegister(chip, r + 16)
         ]
 
     @staticmethod
@@ -1352,8 +1352,8 @@ class Instruction_FMULSU(Instruction):
         d = args['d']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16),
-            binaryninja_avr.operand.OperandRegister(chip, r + 16)
+            operand.OperandRegister(chip, d + 16),
+            operand.OperandRegister(chip, r + 16)
         ]
 
     @staticmethod
@@ -1456,7 +1456,7 @@ class Instruction_JMP(Instruction):
     @classmethod
     def args_to_operands(cls, chip, args):
         return [
-            binaryninja_avr.operand.OperandDirectAddress(chip, args['k'] * 2)
+            operand.OperandDirectAddress(chip, args['k'] * 2)
         ]
 
     @staticmethod
@@ -1492,24 +1492,24 @@ class Instruction_LD_X_I(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[X]'
             )
         ]
@@ -1544,22 +1544,22 @@ class Instruction_LD_X_II(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken, self.name()),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[X+]'
             )
         ]
@@ -1609,22 +1609,22 @@ class Instruction_LD_X_III(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken, self.name()),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[-X]'
             )
         ]
@@ -1675,22 +1675,22 @@ class Instruction_LD_Y_I(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken, self.name()),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 'Y'
             )
         ]
@@ -1725,22 +1725,22 @@ class Instruction_LD_Y_II(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken, self.name()),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[Y+]'
             )
         ]
@@ -1791,22 +1791,22 @@ class Instruction_LD_Y_III(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken, self.name()),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[-Y]'
             )
         ]
@@ -1858,34 +1858,34 @@ class Instruction_LD_Y_IV(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken, self.name()),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.BeginMemoryOperandToken,
+            InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
                 '['
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 'Y + '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.IntegerToken,
+            InstructionTextToken(
+                InstructionTextTokenType.IntegerToken,
                 str(self.operands[1].immediate_value)
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.EndMemoryOperandToken,
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
                 ']'
             ),
         ]
@@ -1924,24 +1924,24 @@ class Instruction_LD_Z_I(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[Z]'
             )
         ]
@@ -1976,22 +1976,22 @@ class Instruction_LD_Z_II(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken, self.name()),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[Z+]'
             )
         ]
@@ -2041,22 +2041,22 @@ class Instruction_LD_Z_III(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken, self.name()),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[-Z]'
             )
         ]
@@ -2109,34 +2109,34 @@ class Instruction_LD_Z_IV(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken, self.name()),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.BeginMemoryOperandToken,
+            InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
                 '['
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 'Z + '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.IntegerToken,
+            InstructionTextToken(
+                InstructionTextTokenType.IntegerToken,
                 str(self.operands[1].immediate_value)
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.EndMemoryOperandToken,
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
                 ']'
             ),
         ]
@@ -2175,8 +2175,8 @@ class Instruction_LDI(Instruction):
         K = args['K']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16),
-            binaryninja_avr.operand.OperandImmediate(chip, K)
+            operand.OperandRegister(chip, d + 16),
+            operand.OperandImmediate(chip, K)
         ]
 
     @staticmethod
@@ -2222,22 +2222,22 @@ class Instruction_LDS_32(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken, self.name()),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.PossibleAddressToken,
+            InstructionTextToken(
+                InstructionTextTokenType.PossibleAddressToken,
                 hex(self.operands[1].immediate_value + RAM_SEGMENT_BEGIN),
                 value=self.operands[1].immediate_value + RAM_SEGMENT_BEGIN
             )
@@ -2253,8 +2253,8 @@ class Instruction_LDS_16(Instruction):
         k = args['k']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16),
-            binaryninja_avr.operand.OperandImmediate(chip, k)
+            operand.OperandRegister(chip, d + 16),
+            operand.OperandImmediate(chip, k)
         ]
 
     def name(cls):
@@ -2282,22 +2282,22 @@ class Instruction_LDS_16(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken, self.name()),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.PossibleAddressToken,
+            InstructionTextToken(
+                InstructionTextTokenType.PossibleAddressToken,
                 hex(self.operands[1].immediate_value + RAM_SEGMENT_BEGIN),
                 value=self.operands[1].immediate_value + RAM_SEGMENT_BEGIN
             )
@@ -2476,8 +2476,8 @@ class Instruction_MOVW(Instruction):
         r = args['r']
 
         return [
-            binaryninja_avr.operand.OperandRegisterWide(chip, d * 2),
-            binaryninja_avr.operand.OperandRegisterWide(chip, r * 2)
+            operand.OperandRegisterWide(chip, d * 2),
+            operand.OperandRegisterWide(chip, r * 2)
         ]
 
     @staticmethod
@@ -2521,8 +2521,8 @@ class Instruction_MULS(Instruction):
         r = args['r']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16),
-            binaryninja_avr.operand.OperandRegister(chip, r + 16)
+            operand.OperandRegister(chip, d + 16),
+            operand.OperandRegister(chip, r + 16)
         ]
 
     @staticmethod
@@ -2553,8 +2553,8 @@ class Instruction_MULSU(Instruction):
         r = args['r']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16),
-            binaryninja_avr.operand.OperandRegister(chip, r + 16)
+            operand.OperandRegister(chip, d + 16),
+            operand.OperandRegister(chip, r + 16)
         ]
 
     @staticmethod
@@ -2635,8 +2635,8 @@ class Instruction_ORI(Instruction):
         K = args['K']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16),
-            binaryninja_avr.operand.OperandImmediate(chip, K)
+            operand.OperandRegister(chip, d + 16),
+            operand.OperandImmediate(chip, K)
         ]
 
     @staticmethod
@@ -2709,7 +2709,7 @@ class Instruction_RCALL(Instruction):
         if k > 2047:
             k -= 4096
         return [
-            binaryninja_avr.operand.OperandRelativeAddress(chip, k * 2 + 2)
+            operand.OperandRelativeAddress(chip, k * 2 + 2)
         ]
 
     @staticmethod
@@ -2753,7 +2753,7 @@ class Instruction_RJMP(Instruction):
             k -= 4 * 1024
 
         return [
-            binaryninja_avr.operand.OperandRelativeAddress(chip, k * 2 + 2)
+            operand.OperandRelativeAddress(chip, k * 2 + 2)
         ]
 
     @staticmethod
@@ -2911,8 +2911,8 @@ class Instruction_SBCI(Instruction):
         d = args['d']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16),
-            binaryninja_avr.operand.OperandImmediate(chip, k)
+            operand.OperandRegister(chip, d + 16),
+            operand.OperandImmediate(chip, k)
         ]
 
     @staticmethod
@@ -3029,8 +3029,8 @@ class Instruction_SBIW(Instruction):
         K = args['K']
 
         return [
-            binaryninja_avr.operand.OperandRegisterWide(chip, d * 2 + 24),
-            binaryninja_avr.operand.OperandImmediate(chip, K)
+            operand.OperandRegisterWide(chip, d * 2 + 24),
+            operand.OperandImmediate(chip, K)
         ]
 
     @staticmethod
@@ -3063,8 +3063,8 @@ class Instruction_SBR(Instruction):
         K = args['K']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16),
-            binaryninja_avr.operand.OperandImmediate(chip, K)
+            operand.OperandRegister(chip, d + 16),
+            operand.OperandImmediate(chip, K)
         ]
 
     @staticmethod
@@ -3170,7 +3170,7 @@ class Instruction_SER(Instruction):
         d = args['d']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16)
+            operand.OperandRegister(chip, d + 16)
         ]
 
     @staticmethod
@@ -3295,24 +3295,24 @@ class Instruction_ST_X_I(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[X]'
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
         ]
@@ -3344,24 +3344,24 @@ class Instruction_ST_X_II(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[X+]'
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
         ]
@@ -3408,24 +3408,24 @@ class Instruction_ST_X_III(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[-X]'
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
         ]
@@ -3473,24 +3473,24 @@ class Instruction_ST_Y_I(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[Y]'
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
         ]
@@ -3522,24 +3522,24 @@ class Instruction_ST_Y_II(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[Y+]'
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
         ]
@@ -3586,24 +3586,24 @@ class Instruction_ST_Y_III(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[-Y]'
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
         ]
@@ -3653,36 +3653,36 @@ class Instruction_ST_Y_IV(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.BeginMemoryOperandToken,
+            InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
                 '['
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 'Y + '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.IntegerToken,
+            InstructionTextToken(
+                InstructionTextTokenType.IntegerToken,
                 str(self.operands[1].immediate_value)
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.EndMemoryOperandToken,
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
                 ']'
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
         ]
@@ -3718,24 +3718,24 @@ class Instruction_ST_Z_I(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[Z]'
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
         ]
@@ -3767,24 +3767,24 @@ class Instruction_ST_Z_II(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,\
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[Z+]'
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
         ]
@@ -3831,24 +3831,24 @@ class Instruction_ST_Z_III(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 '[-Z]'
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
         ]
@@ -3898,36 +3898,36 @@ class Instruction_ST_Z_IV(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.BeginMemoryOperandToken,
+            InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
                 '['
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.StringToken,
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
                 'Z + '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.IntegerToken,
+            InstructionTextToken(
+                InstructionTextTokenType.IntegerToken,
                 str(self.operands[1].immediate_value)
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.EndMemoryOperandToken,
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
                 ']'
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[0].symbolic_value
             ),
         ]
@@ -3947,8 +3947,8 @@ class Instruction_ST_Z_IV(Instruction):
                     il.const_pointer(3, RAM_SEGMENT_BEGIN),
                     il.add(
                         3,
-                        self._operands[1].llil_read(il),
-                        get_xyz_register(il, self._chip, 'Z')
+                        get_xyz_register(il, self._chip, 'Z'),
+                        self._operands[1].llil_read(il)
                     )
                 ),
                 self._operands[0].llil_read(il),
@@ -3982,25 +3982,25 @@ class Instruction_STS_32(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.PossibleAddressToken,
+            InstructionTextToken(
+                InstructionTextTokenType.PossibleAddressToken,
                 hex(self.operands[0].immediate_value + RAM_SEGMENT_BEGIN),
                 value=self.operands[0].immediate_value + RAM_SEGMENT_BEGIN
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[1].symbolic_value
             ),
         ]
@@ -4015,8 +4015,8 @@ class Instruction_STS_16(Instruction):
         d = args['d']
 
         return [
-            binaryninja_avr.operand.OperandImmediate(chip, k),
-            binaryninja_avr.operand.OperandRegister(chip, d + 16)
+            operand.OperandImmediate(chip, k),
+            operand.OperandRegister(chip, d + 16)
         ]
 
     @classmethod
@@ -4042,25 +4042,25 @@ class Instruction_STS_16(Instruction):
 
     def get_instruction_text(self):
         tokens = [
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.InstructionToken,
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
                 self.name()
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ' '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.PossibleAddressToken,
+            InstructionTextToken(
+                InstructionTextTokenType.PossibleAddressToken,
                 hex(self.operands[0].immediate_value + RAM_SEGMENT_BEGIN),
                 value=self.operands[0].immediate_value + RAM_SEGMENT_BEGIN
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.OperandSeparatorToken,
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
                 ', '
             ),
-            binaryninja.InstructionTextToken(
-                binaryninja.InstructionTextTokenType.RegisterToken,
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 self.operands[1].symbolic_value
             ),
         ]
@@ -4097,8 +4097,8 @@ class Instruction_SUBI(Instruction):
         d = args['d']
 
         return [
-            binaryninja_avr.operand.OperandRegister(chip, d + 16),
-            binaryninja_avr.operand.OperandImmediate(chip, k)
+            operand.OperandRegister(chip, d + 16),
+            operand.OperandImmediate(chip, k)
         ]
 
     @staticmethod
