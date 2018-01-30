@@ -2,6 +2,7 @@
 Awesome binaryninja AVR disassembler/lifter plugin.
 """
 import binascii
+import struct
 
 # Load all chips
 import binaryninja_avr.chips.iom16
@@ -124,6 +125,9 @@ class AVR(binaryninja.Architecture):
     def _get_instruction(self, data, addr):
         return instructions.parse_instruction(self.chip, addr, data)
 
+    def _is_conditional_branch(self, ins):
+        return isinstance(ins, instructions.Instruction_BR_Abstract)
+
     def perform_get_instruction_info(self, data, addr):
         nfo = binaryninja.InstructionInfo()
         ins = self._get_instruction(data, addr)
@@ -139,26 +143,7 @@ class AVR(binaryninja.Architecture):
 
         nfo.length = ins.length()
 
-        if ins.__class__ in [
-            instructions.Instruction_BRCC,
-            instructions.Instruction_BRCS,
-            instructions.Instruction_BREQ,
-            instructions.Instruction_BRGE,
-            instructions.Instruction_BRHC,
-            instructions.Instruction_BRHS,
-            instructions.Instruction_BRID,
-            instructions.Instruction_BRIE,
-            instructions.Instruction_BRLO,
-            instructions.Instruction_BRLT,
-            instructions.Instruction_BRMI,
-            instructions.Instruction_BRNE,
-            instructions.Instruction_BRPL,
-            instructions.Instruction_BRSH,
-            instructions.Instruction_BRTC,
-            instructions.Instruction_BRTS,
-            instructions.Instruction_BRVC,
-            instructions.Instruction_BRVS,
-        ]:
+        if self._is_conditional_branch(ins):
             v = addr + ins.operands[0].immediate_value
             if v >= self.chip.ROM_SIZE:
                 v -= self.chip.ROM_SIZE
@@ -261,6 +246,27 @@ class AVR(binaryninja.Architecture):
         else:
             il.append(il.unimplemented())
             return 2
+
+    def perform_is_never_branch_patch_available(self, data, addr):
+        ins = self._get_instruction(data, addr)
+        return self._is_conditional_branch(ins)
+
+    def perform_is_always_branch_patch_available(self, data, addr):
+        ins = self._get_instruction(data, addr)
+        return self._is_conditional_branch(ins)
+
+    def perform_always_branch(self, data, addr):
+        ins = self._get_instruction(data, addr)
+        dst = ins._operands[0]
+        v = (dst.immediate_value - 2) / 2
+        v = (v & 0xFFF) | 0xc000
+        return struct.pack('<H', v)
+
+    def perform_never_branch(self, data, addr):
+        return "\x00\x00"
+
+    def perform_convert_to_nop(self, data, addr):
+        return "\x00\x00"
 
     """
     def perform_get_flag_write_low_level_il(self, op, size, write_type, flag, operands, il):
