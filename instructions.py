@@ -2729,7 +2729,7 @@ class Instruction_RCALL(Instruction):
         elif v < 0:
             v += self._chip.ROM_SIZE
 
-        il.append(il.call(il.const(2, v)))
+        il.append(il.call(il.const(3, v)))
 
 
 class Instruction_RET(Instruction):
