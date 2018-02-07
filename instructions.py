@@ -542,7 +542,7 @@ class Instruction_BR_Abstract(Instruction):
         )
 
         il.mark_label(t)
-        il.append(il.jump(il.const(2, rel_addr)))
+        il.append(il.jump(il.const(3, rel_addr)))
         il.mark_label(f)
 
 
@@ -1059,7 +1059,7 @@ class Instruction_CPSE(Instruction):
         il.append(
             il.jump(
                 il.const(
-                    2,
+                    3,
                     self._addr + 2 + next_len
                 )
             )
@@ -2775,7 +2775,7 @@ class Instruction_RJMP(Instruction):
 
         il.append(
             il.jump(
-                il.const(2, taddr)
+                il.const(3, taddr)
             )
         )
 
@@ -2990,7 +2990,7 @@ class Instruction_SkipInstruction_Abstract(Instruction):
         )
 
         il.mark_label(t)
-        il.append(il.jump(il.const(2, self._addr + 4)))
+        il.append(il.jump(il.const(3, self._addr + 4)))
         il.mark_label(f)
 
 

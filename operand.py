@@ -105,7 +105,8 @@ class OperandImm(Operand):
 
 
 class OperandDirectAddress(OperandImm):
-    pass
+    def llil_read(self, il):
+        return il.const(3, self.immediate_value)
 
 
 class OperandImmediate(OperandImm):
@@ -113,4 +114,5 @@ class OperandImmediate(OperandImm):
 
 
 class OperandRelativeAddress(OperandImm):
-    pass
+    def llil_read(self, il):
+        return il.const(3, self.immediate_value)

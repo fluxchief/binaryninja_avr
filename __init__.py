@@ -22,7 +22,7 @@ from binaryninja import (
 
 class AVR(binaryninja.Architecture):
     name = 'AVR'
-    address_size = 2
+    address_size = 3
     default_int_size = 1
     # Instructions can only be 4 bytes in length MAX. However we need to have
     # the next instruction as well for some lifting reason, this is why we chose
