@@ -1,12 +1,12 @@
 import binaryninja_avr.chips
 
 
-class IOX256A4U(binaryninja_avr.chips.Chip):
+class IOX128A4U(binaryninja_avr.chips.Chip):
     """
-    XMega256A4U
+    XMega128A4U
     """
 
-    CHIP_ALIASES = ["iox256a4u", "ATXMega256A4U"]
+    CHIP_ALIASES = ["iox128a4u", "ATXMega128A4U"]
     ARCHITECTURE_MAPS_REGISTERS = False
     RAM_SIZE = 8 * 1024
     ROM_SIZE = 128 * 1024

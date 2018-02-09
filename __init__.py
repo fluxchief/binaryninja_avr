@@ -8,7 +8,7 @@ import struct
 import binaryninja_avr.chips.iom16
 import binaryninja_avr.chips.iotn48
 import binaryninja_avr.chips.iotn88
-import binaryninja_avr.chips.iox256a4u
+import binaryninja_avr.chips.iox128a4u
 
 from binaryninja_avr import instructions
 from binaryninja_avr.instructions import RAM_SEGMENT_BEGIN
@@ -34,7 +34,7 @@ class AVR(binaryninja.Architecture):
     # chip = binaryninja_avr.chips.iom16.IOM16()
     # chip = binaryninja_avr.chips.iotn48.IOTn48()
     # chip = binaryninja_avr.chips.iotn88.IOTn88()
-    chip = binaryninja_avr.chips.iox256a4u.IOX256A4U()
+    chip = binaryninja_avr.chips.iox128a4u.IOX128A4U()
 
     regs = {
         'r0': binaryninja.RegisterInfo('r0', 1),
