@@ -859,13 +859,31 @@ class Instruction_CLN(Instruction):
 
 
 class Instruction_CLR(Instruction):
+    register_order = ['d', 'r']
+
+    def get_instruction_text(self):
+        tokens = [
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
+                ' '
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                self.operands[0].symbolic_value
+            ),
+        ]
+
+        return tokens
+
     @staticmethod
     def verify_args(args):
-        return args['d'] < 32
+        return args['d'] == args['r']
 
     @staticmethod
     def instruction_signature():
-        return '0010 01dd dddd dddd'.replace(' ', '')
+        return '0010 01rd dddd rrrr'.replace(' ', '')
 
     def get_llil(self, il):
         il.append(
@@ -2419,9 +2437,31 @@ class Instruction_LPM_III(Instruction):
 
 
 class Instruction_LSL(Instruction):
+    register_order = ['d', 'r']
+
+    def get_instruction_text(self):
+        tokens = [
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
+                ' '
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                self.operands[0].symbolic_value
+            ),
+        ]
+
+        return tokens
+
+    @staticmethod
+    def verify_args(args):
+        return args['d'] == args['r']
+
     @staticmethod
     def instruction_signature():
-        return '0000 11dd dddd dddd'.replace(' ', '')
+        return '0000 11rd dddd rrrr'.replace(' ', '')
 
     def get_llil(self, il):
         il.append(
@@ -2781,9 +2821,31 @@ class Instruction_RJMP(Instruction):
 
 
 class Instruction_ROL(Instruction):
+    register_order = ['d', 'r']
+
+    def get_instruction_text(self):
+        tokens = [
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
+                ' '
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                self.operands[0].symbolic_value
+            ),
+        ]
+
+        return tokens
+
+    @staticmethod
+    def verify_args(args):
+        return args['d'] == args['r']
+
     @staticmethod
     def instruction_signature():
-        return '0001 11dd dddd dddd'.replace(' ', '')
+        return '0001 11rd dddd rrrr'.replace(' ', '')
 
     def get_llil(self, il):
         # Set LLIL_TEMP(0) = op << 1 | c.
@@ -4133,9 +4195,31 @@ class Instruction_SWAP(Instruction):
 
 
 class Instruction_TST(Instruction):
+    register_order = ['d', 'r']
+
+    def get_instruction_text(self):
+        tokens = [
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken, self.name()),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
+                ' '
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                self.operands[0].symbolic_value
+            ),
+        ]
+
+        return tokens
+
+    @staticmethod
+    def verify_args(args):
+        return args['d'] == args['r']
+
     @staticmethod
     def instruction_signature():
-        return '0010 00dd dddd dddd'.replace(' ', '')
+        return '0010 00rd dddd rrrr'.replace(' ', '')
 
     def get_llil(self, il):
         il.append(
@@ -4161,6 +4245,12 @@ class Instruction_XCH(Instruction):
 
 
 ALL_INSTRUCTIONS = [
+    # Easier-to-read aliases
+    Instruction_CLR,
+    Instruction_LSL,
+    Instruction_ROL,
+    Instruction_TST,
+
     Instruction_ADC,
     Instruction_ADD,
     Instruction_ADIW,
@@ -4193,7 +4283,6 @@ ALL_INSTRUCTIONS = [
     Instruction_CLH,
     Instruction_CLI,
     Instruction_CLN,
-    Instruction_CLR,
     Instruction_CLS,
     Instruction_CLT,
     Instruction_CLV,
@@ -4238,7 +4327,6 @@ ALL_INSTRUCTIONS = [
     Instruction_LPM_I,
     Instruction_LPM_II,
     Instruction_LPM_III,
-    Instruction_LSL,
     Instruction_LSR,
     Instruction_MOV,
     Instruction_MOVW,
@@ -4256,7 +4344,6 @@ ALL_INSTRUCTIONS = [
     Instruction_RET,
     Instruction_RETI,
     Instruction_RJMP,
-    Instruction_ROL,
     Instruction_ROR,
     Instruction_SBC,
     Instruction_SBCI,
@@ -4295,7 +4382,6 @@ ALL_INSTRUCTIONS = [
     Instruction_SUB,
     Instruction_SUBI,
     Instruction_SWAP,
-    Instruction_TST,
     Instruction_WDR,
     Instruction_XCH,
 ]
