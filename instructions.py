@@ -561,7 +561,7 @@ class Instruction_BRCS(Instruction_BR_Abstract):
         return '1111 00kk kkkk k000'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 0), il.flag('C'))
+        return il.compare_equal(1, il.const(1, 1), il.flag('C'))
 
 
 class Instruction_BREAK(Instruction):
@@ -579,7 +579,7 @@ class Instruction_BREQ(Instruction_BR_Abstract):
         return '1111 00kk kkkk k001'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 0), il.flag('Z'))
+        return il.compare_equal(1, il.const(1, 1), il.flag('Z'))
 
 
 class Instruction_BRGE(Instruction_BR_Abstract):
@@ -592,7 +592,7 @@ class Instruction_BRGE(Instruction_BR_Abstract):
             1,
             il.xor_expr(
                 1,
-                il.flag('Z'),
+                il.flag('N'),
                 il.flag('V')
             ),
             il.const(1, 0)
@@ -614,7 +614,7 @@ class Instruction_BRHS(Instruction_BR_Abstract):
         return '1111 00kk kkkk k101'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 0), il.flag('H'))
+        return il.compare_equal(1, il.const(1, 1), il.flag('H'))
 
 
 class Instruction_BRID(Instruction_BR_Abstract):
@@ -632,7 +632,7 @@ class Instruction_BRIE(Instruction_BR_Abstract):
         return '1111 00kk kkkk k111'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 0), il.flag('I'))
+        return il.compare_equal(1, il.const(1, 1), il.flag('I'))
 
 
 class Instruction_BRLO(Instruction_BR_Abstract):
@@ -641,7 +641,7 @@ class Instruction_BRLO(Instruction_BR_Abstract):
         return '1111 00kk kkkk k000'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 0), il.flag('C'))
+        return il.compare_equal(1, il.const(1, 1), il.flag('C'))
 
 
 class Instruction_BRLT(Instruction_BR_Abstract):
@@ -667,7 +667,7 @@ class Instruction_BRMI(Instruction_BR_Abstract):
         return '1111 00kk kkkk k010'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 0), il.flag('N'))
+        return il.compare_equal(1, il.const(1, 1), il.flag('N'))
 
 
 class Instruction_BRNE(Instruction_BR_Abstract):
@@ -712,7 +712,7 @@ class Instruction_BRTS(Instruction_BR_Abstract):
         return '1111 00kk kkkk k110'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 0), il.flag('T'))
+        return il.compare_equal(1, il.const(1, 1), il.flag('T'))
 
 
 class Instruction_BRVC(Instruction_BR_Abstract):
@@ -730,7 +730,7 @@ class Instruction_BRVS(Instruction_BR_Abstract):
         return '1111 00kk kkkk k011'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 0), il.flag('V'))
+        return il.compare_equal(1, il.const(1, 1), il.flag('V'))
 
 
 class Instruction_BST(Instruction):
