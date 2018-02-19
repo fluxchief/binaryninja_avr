@@ -4193,6 +4193,19 @@ class Instruction_SWAP(Instruction):
     def instruction_signature():
         return '1001 010d dddd 0010'.replace(' ', '')
 
+    def get_llil(self, il):
+        il.append(
+            il.set_reg(
+                1,
+                self._operands[0].symbolic_value,
+                il.rotate_right(
+                    1,
+                    self._operands[0].llil_read(il),
+                    il.const(1, 4)
+                )
+            )
+        )
+
 
 class Instruction_TST(Instruction):
     register_order = ['d', 'r']
