@@ -26,8 +26,8 @@ ALL_CHIPS = [
 
 import binaryninja
 from binaryninja import (
-        BranchType, SegmentFlag, SectionSemantics, SymbolType,
-        LowLevelILFlagCondition, FlagRole
+    BranchType, SegmentFlag, SectionSemantics, SymbolType,
+    LowLevelILFlagCondition, FlagRole
 )
 
 
@@ -71,12 +71,19 @@ class AVR(binaryninja.Architecture):
         'r23': binaryninja.RegisterInfo('r23', 1),
         'r24': binaryninja.RegisterInfo('r24', 1),
         'r25': binaryninja.RegisterInfo('r25', 1),
-        'r26': binaryninja.RegisterInfo('r26', 1),
-        'r27': binaryninja.RegisterInfo('r27', 1),
-        'r28': binaryninja.RegisterInfo('r28', 1),
-        'r29': binaryninja.RegisterInfo('r29', 1),
-        'r30': binaryninja.RegisterInfo('r30', 1),
-        'r31': binaryninja.RegisterInfo('r31', 1),
+
+        'X': binaryninja.RegisterInfo('X', 2),
+        'r26': binaryninja.RegisterInfo('X', 1, 0),
+        'r27': binaryninja.RegisterInfo('X', 1, 1),
+
+        'Y': binaryninja.RegisterInfo('Y', 2),
+        'r28': binaryninja.RegisterInfo('Y', 1, 0),
+        'r29': binaryninja.RegisterInfo('Y', 1, 1),
+
+        'Z': binaryninja.RegisterInfo('Z', 2),
+        'r30': binaryninja.RegisterInfo('Z', 1, 0),
+        'r31': binaryninja.RegisterInfo('Z', 1, 1),
+
         'SP': binaryninja.RegisterInfo('SP', 2),
     }
 

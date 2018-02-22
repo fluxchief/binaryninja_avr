@@ -256,42 +256,54 @@ class Instruction(object):
         il.append(il.unimplemented())
 
 
-# IL Helper functions
 def do_u16_op_on_llil_tmp(il, rhigh, rlow, il_op_fn, tmp_idx=0):
-    il.append(
-        il.set_reg(
-            2,
-            binaryninja.LLIL_TEMP(tmp_idx),
-            il.add(
+    if rlow in ['r26', 'r28', 'r30']:
+        # Use short form. TODO: Move this to some global place.
+        XYZ = {'r26': 'X', 'r28': 'Y', 'r30': 'Z'}
+        il.append(
+            il.set_reg(
                 2,
-                il.shift_left(
-                    2,
-                    il.zero_extend(2, il.reg(1, rhigh)),
-                    il.const(2, 8)
-                ),
-                il.zero_extend(2, il.reg(1, rlow))
+                binaryninja.LLIL_TEMP(tmp_idx),
+                il.reg(2, XYZ[rlow]),
             )
         )
-    )
 
-    il_op_fn(il)
+        il_op_fn(il)
 
-    il.append(
-        il.set_reg_split(
-            1,
-            rhigh, rlow,
-            il.reg(2, binaryninja.LLIL_TEMP(tmp_idx))
+        il.append(
+            il.set_reg(2, XYZ[rlow], il.reg(2, binaryninja.LLIL_TEMP(tmp_idx)))
         )
-    )
+    else:
+        il.append(
+            il.set_reg(
+                2,
+                binaryninja.LLIL_TEMP(tmp_idx),
+                il.add(
+                    2,
+                    il.shift_left(
+                        2,
+                        il.zero_extend(2, il.reg(1, rhigh)),
+                        il.const(2, 8)
+                    ),
+                    il.zero_extend(2, il.reg(1, rlow))
+                )
+            )
+        )
+
+        il_op_fn(il)
+
+        il.append(
+            il.set_reg_split(
+                1,
+                rhigh, rlow,
+                il.reg(2, binaryninja.LLIL_TEMP(tmp_idx))
+            )
+        )
 
 
 # Returns RAMP* register if existing, otherwise zero.
 def get_ramp_register(il, chip, ramp):
-    # TODO: We 'support' RAMPX..RAMZ, however BN is unable to handle it in a way
-    # that an access to a reg is shown:
-    #   [REG].b = X vs [GPIO0 + (([RAMPZ].b << 0x10) | addrof(X))])
-    # This is why we disable it here.
-    if ramp in chip.all_registers.values() and False:
+    if ramp in chip.all_registers.values():
         return il.load(
             1,
             il.const(
@@ -305,31 +317,28 @@ def get_ramp_register(il, chip, ramp):
 
 def get_xyz_register(il, chip, r):
     r = r.upper()
-    n = None
-    if r == 'X':
-        n = 26
-    elif r == 'Y':
-        n = 28
-    elif r == 'Z':
-        n = 30
-    else:
-        raise RuntimeError("Unknown XYZ register: \'{}\'".format(repr(r)))
-
-    return il.or_expr(
-        3,
-        il.shift_left(
+    assert r in ['X', 'Y', 'Z']
+    # TODO: We 'support' RAMPX..RAMZ, however BN is unable to handle it in a way
+    # that an access to a reg is shown:
+    #   [REG].b = X vs [GPIO0 + (([RAMPZ].b << 0x10) | addrof(X))])
+    # This is why we disable it here.
+    if False:
+        # Use RAMPX/Y/Z register
+        return il.or_expr(
             3,
-            get_ramp_register(il, chip, 'RAMP' + r),
-            il.const(1, 16)
-        ),
-        operand.OperandRegisterWide(
-            chip, n
-        ).llil_read(il)
-    )
-
+            il.shift_left(
+                3,
+                get_ramp_register(il, chip, 'RAMP' + r),
+                il.const(1, 16)
+            ),
+            il.reg(2, r)
+        )
+    else:
+        return il.reg(2, r)
 
 # Definitions of the instructions from the
 # Atmel-0856-AVR-Instruction-Set-Manual.
+
 
 class Instruction_ADC(Instruction):
     register_order = ['d', 'r']
@@ -1289,30 +1298,20 @@ class Instruction_ELPM_III(Instruction):
                             get_ramp_register(il, self._chip, 'RAMPZ'),
                             il.const(1, 16)
                         ),
-                        il.zero_extend(3, il.add(
-                            2,
-                            il.shift_left(
-                                2,
-                                il.zero_extend(2, il.reg(1, 'r31')),
-                                il.const(2, 8)
-                            ),
-                            il.zero_extend(2, il.reg(1, 'r30'))
-                        ))
+                        il.zero_extend(3, il.reg(2, 'Z'))
                     )
                 )
             )
         )
-        do_u16_op_on_llil_tmp(
-            il, 'r31', 'r30',
-            lambda il: il.append(
-                il.set_reg(
+
+        il.append(
+            il.set_reg(
+                2,
+                'Z',
+                il.add(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.add(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'Z'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -1540,9 +1539,17 @@ class Instruction_LD_X_I(Instruction):
                 ', '
             ),
             InstructionTextToken(
-                InstructionTextTokenType.StringToken,
-                '[X]'
-            )
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'X'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
+            ),
         ]
 
         return tokens
@@ -1590,9 +1597,21 @@ class Instruction_LD_X_II(Instruction):
                 ', '
             ),
             InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'X'
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                '[X+]'
-            )
+                '+'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
+            ),
         ]
 
         return tokens
@@ -1617,17 +1636,14 @@ class Instruction_LD_X_II(Instruction):
             )
         )
         # X++
-        do_u16_op_on_llil_tmp(
-            il, 'r27', 'r26',
-            lambda il: il.append(
-                il.set_reg(
+        il.append(
+            il.set_reg(
+                2,
+                'X',
+                il.add(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.add(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'X'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -1655,9 +1671,21 @@ class Instruction_LD_X_III(Instruction):
                 ', '
             ),
             InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                '[-X]'
-            )
+                '-'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'X'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
+            ),
         ]
 
         return tokens
@@ -1668,17 +1696,14 @@ class Instruction_LD_X_III(Instruction):
 
     def get_llil(self, il):
         # --X
-        do_u16_op_on_llil_tmp(
-            il, 'r27', 'r26',
-            lambda il: il.append(
-                il.set_reg(
+        il.append(
+            il.set_reg(
+                2,
+                'X',
+                il.sub(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.sub(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'X'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -1721,9 +1746,17 @@ class Instruction_LD_Y_I(Instruction):
                 ', '
             ),
             InstructionTextToken(
-                InstructionTextTokenType.StringToken,
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
                 'Y'
-            )
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
+            ),
         ]
 
         return tokens
@@ -1771,9 +1804,21 @@ class Instruction_LD_Y_II(Instruction):
                 ', '
             ),
             InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Y'
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                '[Y+]'
-            )
+                '+'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
+            ),
         ]
 
         return tokens
@@ -1799,17 +1844,14 @@ class Instruction_LD_Y_II(Instruction):
         )
 
         # Y++?
-        do_u16_op_on_llil_tmp(
-            il, 'r29', 'r30',
-            lambda il: il.append(
-                il.set_reg(
+        il.append(
+            il.set_reg(
+                2,
+                'Y',
+                il.add(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.add(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'Y'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -1837,9 +1879,21 @@ class Instruction_LD_Y_III(Instruction):
                 ', '
             ),
             InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                '[-Y]'
-            )
+                '-'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Y'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
+            ),
         ]
 
         return tokens
@@ -1850,17 +1904,14 @@ class Instruction_LD_Y_III(Instruction):
 
     def get_llil(self, il):
         # --Y
-        do_u16_op_on_llil_tmp(
-            il, 'r29', 'r28',
-            lambda il: il.append(
-                il.set_reg(
+        il.append(
+            il.set_reg(
+                2,
+                'Y',
+                il.sub(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.sub(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'Y'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -1908,8 +1959,12 @@ class Instruction_LD_Y_IV(Instruction):
                 '['
             ),
             InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Y'
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                'Y + '
+                ' + '
             ),
             InstructionTextToken(
                 InstructionTextTokenType.IntegerToken,
@@ -1972,9 +2027,17 @@ class Instruction_LD_Z_I(Instruction):
                 ', '
             ),
             InstructionTextToken(
-                InstructionTextTokenType.StringToken,
-                '[Z]'
-            )
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Z'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
+            ),
         ]
 
         return tokens
@@ -2022,9 +2085,21 @@ class Instruction_LD_Z_II(Instruction):
                 ', '
             ),
             InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Z'
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                '[Z+]'
-            )
+                '+'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
+            ),
         ]
 
         return tokens
@@ -2049,17 +2124,14 @@ class Instruction_LD_Z_II(Instruction):
             )
         )
 
-        do_u16_op_on_llil_tmp(
-            il, 'r31', 'r30',
-            lambda il: il.append(
-                il.set_reg(
+        il.append(
+            il.set_reg(
+                2,
+                'Z',
+                il.add(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.add(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'Z'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -2087,9 +2159,21 @@ class Instruction_LD_Z_III(Instruction):
                 ', '
             ),
             InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                '[-Z]'
-            )
+                '-'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Z'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
+            ),
         ]
 
         return tokens
@@ -2100,17 +2184,14 @@ class Instruction_LD_Z_III(Instruction):
 
     def get_llil(self, il):
         # --Z
-        do_u16_op_on_llil_tmp(
-            il, 'r31', 'r30',
-            lambda il: il.append(
-                il.set_reg(
+        il.append(
+            il.set_reg(
+                2,
+                'Z',
+                il.sub(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.sub(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'Z'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -2159,8 +2240,12 @@ class Instruction_LD_Z_IV(Instruction):
                 '['
             ),
             InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Z'
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                'Z + '
+                ' + '
             ),
             InstructionTextToken(
                 InstructionTextTokenType.IntegerToken,
@@ -2484,29 +2569,18 @@ class Instruction_LPM_III(Instruction):
                 self._operands[0].symbolic_value,
                 il.load(
                     1,
-                    il.add(
-                        2,
-                        il.shift_left(
-                            2,
-                            il.zero_extend(2, il.reg(1, 'r31')),
-                            il.const(2, 8)
-                        ),
-                        il.zero_extend(2, il.reg(1, 'r30'))
-                    )
+                    il.reg(2, 'Z')  # TODO: check ramp* reg usage here and everywhere else
                 )
             )
         )
-        do_u16_op_on_llil_tmp(
-            il, 'r31', 'r30',
-            lambda il: il.append(
-                il.set_reg(
+        il.append(
+            il.set_reg(
+                2,
+                'Z',
+                il.add(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.add(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'Z'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -3353,10 +3427,10 @@ class Instruction_SPM_I(Instruction):
                     2,
                     il.shift_left(
                         2,
-                        il.get_reg(1, 'R1'),
+                        il.reg(1, 'r1'),
                         il.const(1, 8)
                     ),
-                    il.get_reg(1, 'R0')
+                    il.reg(1, 'r0')
                 )
             )
         )
@@ -3389,8 +3463,16 @@ class Instruction_ST_X_I(Instruction):
                 ' '
             ),
             InstructionTextToken(
-                InstructionTextTokenType.StringToken,
-                '[X]'
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'X'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
             ),
             InstructionTextToken(
                 InstructionTextTokenType.OperandSeparatorToken,
@@ -3438,8 +3520,20 @@ class Instruction_ST_X_II(Instruction):
                 ' '
             ),
             InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'X'
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                '[X+]'
+                '+'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
             ),
             InstructionTextToken(
                 InstructionTextTokenType.OperandSeparatorToken,
@@ -3470,17 +3564,14 @@ class Instruction_ST_X_II(Instruction):
             )
         )
         # X++
-        do_u16_op_on_llil_tmp(
-            il, 'r27', 'r26',
-            lambda il: il.append(
-                il.set_reg(
+        il.append(
+            il.set_reg(
+                2,
+                'X',
+                il.add(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.add(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'X'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -3502,8 +3593,20 @@ class Instruction_ST_X_III(Instruction):
                 ' '
             ),
             InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                '[-X]'
+                '-'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'X'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
             ),
             InstructionTextToken(
                 InstructionTextTokenType.OperandSeparatorToken,
@@ -3523,17 +3626,14 @@ class Instruction_ST_X_III(Instruction):
 
     def get_llil(self, il):
         # --X
-        do_u16_op_on_llil_tmp(
-            il, 'r27', 'r26',
-            lambda il: il.append(
-                il.set_reg(
+        il.append(
+            il.set_reg(
+                2,
+                'X',
+                il.sub(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.sub(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'X'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -3567,8 +3667,16 @@ class Instruction_ST_Y_I(Instruction):
                 ' '
             ),
             InstructionTextToken(
-                InstructionTextTokenType.StringToken,
-                '[Y]'
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Y'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
             ),
             InstructionTextToken(
                 InstructionTextTokenType.OperandSeparatorToken,
@@ -3616,8 +3724,20 @@ class Instruction_ST_Y_II(Instruction):
                 ' '
             ),
             InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Y'
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                '[Y+]'
+                '+'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
             ),
             InstructionTextToken(
                 InstructionTextTokenType.OperandSeparatorToken,
@@ -3648,17 +3768,14 @@ class Instruction_ST_Y_II(Instruction):
             )
         )
         # Y++
-        do_u16_op_on_llil_tmp(
-            il, 'r29', 'r28',
-            lambda il: il.append(
-                il.set_reg(
+        il.append(
+            il.set_reg(
+                2,
+                'Y',
+                il.add(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.add(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'Y'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -3680,8 +3797,20 @@ class Instruction_ST_Y_III(Instruction):
                 ' '
             ),
             InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                '[-Y]'
+                '-'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Y'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
             ),
             InstructionTextToken(
                 InstructionTextTokenType.OperandSeparatorToken,
@@ -3701,17 +3830,14 @@ class Instruction_ST_Y_III(Instruction):
 
     def get_llil(self, il):
         # --Y
-        do_u16_op_on_llil_tmp(
-            il, 'r29', 'r28',
-            lambda il: il.append(
-                il.set_reg(
+        il.append(
+            il.set_reg(
+                2,
+                'Y',
+                il.sub(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.sub(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'Y'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -3751,8 +3877,12 @@ class Instruction_ST_Y_IV(Instruction):
                 '['
             ),
             InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Y'
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                'Y + '
+                ' + '
             ),
             InstructionTextToken(
                 InstructionTextTokenType.IntegerToken,
@@ -3787,8 +3917,8 @@ class Instruction_ST_Y_IV(Instruction):
                     il.const_pointer(3, RAM_SEGMENT_BEGIN),
                     il.add(
                         3,
-                        self._operands[1].llil_read(il),
-                        get_xyz_register(il, self._chip, 'Y')
+                        get_xyz_register(il, self._chip, 'Y'),
+                        self._operands[1].llil_read(il)
                     )
                 ),
                 self._operands[0].llil_read(il),
@@ -3812,8 +3942,16 @@ class Instruction_ST_Z_I(Instruction):
                 ' '
             ),
             InstructionTextToken(
-                InstructionTextTokenType.StringToken,
-                '[Z]'
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Z'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
             ),
             InstructionTextToken(
                 InstructionTextTokenType.OperandSeparatorToken,
@@ -3861,8 +3999,20 @@ class Instruction_ST_Z_II(Instruction):
                 ' '
             ),
             InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Z'
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                '[Z+]'
+                '+'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
             ),
             InstructionTextToken(
                 InstructionTextTokenType.OperandSeparatorToken,
@@ -3893,17 +4043,14 @@ class Instruction_ST_Z_II(Instruction):
             )
         )
         # Z++
-        do_u16_op_on_llil_tmp(
-            il, 'r31', 'r30',
-            lambda il: il.append(
-                il.set_reg(
+        il.append(
+            il.set_reg(
+                2,
+                'Z',
+                il.add(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.add(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'Z'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -3925,8 +4072,20 @@ class Instruction_ST_Z_III(Instruction):
                 ' '
             ),
             InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                '[-Z]'
+                '-'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Z'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
             ),
             InstructionTextToken(
                 InstructionTextTokenType.OperandSeparatorToken,
@@ -3946,17 +4105,14 @@ class Instruction_ST_Z_III(Instruction):
 
     def get_llil(self, il):
         # --Z
-        do_u16_op_on_llil_tmp(
-            il, 'r31', 'r30',
-            lambda il: il.append(
-                il.set_reg(
+        il.append(
+            il.set_reg(
+                2,
+                'Z',
+                il.sub(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.add(
-                        2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        il.const(2, 1)
-                    )
+                    il.reg(2, 'Z'),
+                    il.const(2, 1)
                 )
             )
         )
@@ -3996,8 +4152,12 @@ class Instruction_ST_Z_IV(Instruction):
                 '['
             ),
             InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Z'
+            ),
+            InstructionTextToken(
                 InstructionTextTokenType.StringToken,
-                'Z + '
+                ' + '
             ),
             InstructionTextToken(
                 InstructionTextTokenType.IntegerToken,
