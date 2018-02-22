@@ -379,9 +379,3 @@ class AVRBinaryView(binaryninja.BinaryView):
 AVR.register()
 AVRBinaryView.register()
 
-# Uhm, copy paste?
-arch = binaryninja.Architecture[AVR.name]
-cc = DefaultCallingConvention(arch, name='default')
-arch.register_calling_convention(cc)
-arch.standalone_platform.default_calling_convention = arch.calling_conventions[
-    'default']
