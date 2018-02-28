@@ -4422,6 +4422,11 @@ def populate_prefix_lookup_table():
         INSTRUCTIONS_BY_PREFIX[len(prefix)][int(''.join(prefix), 2)].append(ins)
 
 
+# Caches all instructions that have been used by their first u16.
+# Will contain 65k class references at max.
+INSTRUCTION_CACHE = {}
+
+
 def parse_instruction(chip, addr, data):
     """
     Tries to parse a single instruction.
@@ -4430,21 +4435,28 @@ def parse_instruction(chip, addr, data):
         return None
 
     # To reduce the overhead of parse_value we're parsing two u16 here and pass
-    # it to parse_value
+    # it to parse_value.
     if len(data) >= 4:
         (u0, u1) = struct.unpack_from("<HH", data)
         w = 4
         v = u0 << 16 | u1
     else:
-        (u0, u1) = struct.unpack("<H", data)[0], None
+        u0 = struct.unpack_from("<H", data)[0]
         w = 2
         v = u0
+
+    # Check cache.
+    if u0 in INSTRUCTION_CACHE:
+        ins = INSTRUCTION_CACHE[u0]
+        return ins.parse_value(chip, addr, data, v if ins.length() == 4 else u0)
 
     for prefix_length, prefix_ins_list in INSTRUCTIONS_BY_PREFIX.iteritems():
         prefix = u0 >> (16 - prefix_length)
         for ins in prefix_ins_list.get(prefix, []):
             if ins.length() > w:
                 continue
+
+            INSTRUCTION_CACHE[u0] = ins
 
             if ins.length() == 4:
                 r = ins.parse_value(chip, addr, data, v)
