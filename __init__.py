@@ -6,6 +6,7 @@ import struct
 
 # Load all chips
 import binaryninja_avr.chips.iom16
+import binaryninja_avr.chips.iom168
 import binaryninja_avr.chips.iotn48
 import binaryninja_avr.chips.iotn88
 import binaryninja_avr.chips.iox128a4u
@@ -34,6 +35,7 @@ class AVR(binaryninja.Architecture):
     # chip = binaryninja_avr.chips.iom16.IOM16()
     # chip = binaryninja_avr.chips.iotn48.IOTn48()
     # chip = binaryninja_avr.chips.iotn88.IOTn88()
+    # chip = binaryninja_avr.chips.iom168.IOM168()
     chip = binaryninja_avr.chips.iox128a4u.IOX128A4U()
 
     regs = {
