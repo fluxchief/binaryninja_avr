@@ -257,7 +257,7 @@ class Instruction(object):
 
 
 # IL Helper functions
-def do_u16_op_on_llil_tmp(il, r0, r1, il_op_fn, tmp_idx=0):
+def do_u16_op_on_llil_tmp(il, rhigh, rlow, il_op_fn, tmp_idx=0):
     il.append(
         il.set_reg(
             2,
@@ -266,10 +266,10 @@ def do_u16_op_on_llil_tmp(il, r0, r1, il_op_fn, tmp_idx=0):
                 2,
                 il.shift_left(
                     2,
-                    il.zero_extend(2, il.reg(1, r1)),
+                    il.zero_extend(2, il.reg(1, rhigh)),
                     il.const(2, 8)
                 ),
-                il.zero_extend(2, il.reg(1, r0))
+                il.zero_extend(2, il.reg(1, rlow))
             )
         )
     )
@@ -279,7 +279,7 @@ def do_u16_op_on_llil_tmp(il, r0, r1, il_op_fn, tmp_idx=0):
     il.append(
         il.set_reg_split(
             1,
-            r1, r0,
+            rhigh, rlow,
             il.reg(2, binaryninja.LLIL_TEMP(tmp_idx))
         )
     )
@@ -392,9 +392,10 @@ class Instruction_ADIW(Instruction):
         return '1001 0110 KKdd KKKK'.replace(' ', '')
 
     def get_llil(self, il):
-        r0, r1 = self._operands[0].symbolic_value.split(':')
+        low = self._operands[0].low()
+        high = self._operands[0].high()
         do_u16_op_on_llil_tmp(
-            il, r0, r1,
+            il, high, low,
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -1296,7 +1297,7 @@ class Instruction_ELPM_III(Instruction):
             )
         )
         do_u16_op_on_llil_tmp(
-            il, 'r30', 'r31',
+            il, 'r31', 'r30',
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -1611,7 +1612,7 @@ class Instruction_LD_X_II(Instruction):
         )
         # X++
         do_u16_op_on_llil_tmp(
-            il, 'r26', 'r27',
+            il, 'r27', 'r26',
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -1662,7 +1663,7 @@ class Instruction_LD_X_III(Instruction):
     def get_llil(self, il):
         # --X
         do_u16_op_on_llil_tmp(
-            il, 'r26', 'r27',
+            il, 'r27', 'r26',
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -1793,7 +1794,7 @@ class Instruction_LD_Y_II(Instruction):
 
         # Y++?
         do_u16_op_on_llil_tmp(
-            il, 'r28', 'r29',
+            il, 'r29', 'r30',
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -1844,7 +1845,7 @@ class Instruction_LD_Y_III(Instruction):
     def get_llil(self, il):
         # --Y
         do_u16_op_on_llil_tmp(
-            il, 'r28', 'r29',
+            il, 'r29', 'r28',
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -2043,7 +2044,7 @@ class Instruction_LD_Z_II(Instruction):
         )
 
         do_u16_op_on_llil_tmp(
-            il, 'r30', 'r31',
+            il, 'r31', 'r30',
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -2094,7 +2095,7 @@ class Instruction_LD_Z_III(Instruction):
     def get_llil(self, il):
         # --Z
         do_u16_op_on_llil_tmp(
-            il, 'r30', 'r31',
+            il, 'r31', 'r30',
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -2421,7 +2422,7 @@ class Instruction_LPM_III(Instruction):
             )
         )
         do_u16_op_on_llil_tmp(
-            il, 'r30', 'r31',
+            il, 'r31', 'r30',
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -2531,10 +2532,12 @@ class Instruction_MOVW(Instruction):
         return '0000 0001 dddd rrrr'.replace(' ', '')
 
     def get_llil(self, il):
-        d0, d1 = self._operands[0].symbolic_value.split(':')
-        r0, r1 = self._operands[1].symbolic_value.split(':')
-        il.append(il.set_reg(1, d0, il.reg(1, r0)))
-        il.append(il.set_reg(1, d1, il.reg(1, r1)))
+        dlow = self._operands[0].low()
+        dhigh = self._operands[0].high()
+        rlow = self._operands[1].low()
+        rhigh = self._operands[1].high()
+        il.append(il.set_reg(1, dlow, il.reg(1, rlow)))
+        il.append(il.set_reg(1, dhigh, il.reg(1, rhigh)))
 
 
 class Instruction_MUL(Instruction):
@@ -3106,9 +3109,10 @@ class Instruction_SBIW(Instruction):
         return '1001 0111 KKdd KKKK'.replace(' ', '')
 
     def get_llil(self, il):
-        r0, r1 = self._operands[0].symbolic_value.split(':')
+        rlow = self._operands[0].low()
+        rhigh = self._operands[0].high()
         do_u16_op_on_llil_tmp(
-            il, r0, r1,
+            il, rhigh, rlow,
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -3454,7 +3458,7 @@ class Instruction_ST_X_II(Instruction):
         )
         # X++
         do_u16_op_on_llil_tmp(
-            il, 'r26', 'r27',
+            il, 'r27', 'r26',
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -3507,7 +3511,7 @@ class Instruction_ST_X_III(Instruction):
     def get_llil(self, il):
         # --X
         do_u16_op_on_llil_tmp(
-            il, 'r26', 'r27',
+            il, 'r27', 'r26',
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -3632,7 +3636,7 @@ class Instruction_ST_Y_II(Instruction):
         )
         # Y++
         do_u16_op_on_llil_tmp(
-            il, 'r28', 'r29',
+            il, 'r29', 'r28',
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -3685,7 +3689,7 @@ class Instruction_ST_Y_III(Instruction):
     def get_llil(self, il):
         # --Y
         do_u16_op_on_llil_tmp(
-            il, 'r28', 'r29',
+            il, 'r29', 'r28',
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -3877,7 +3881,7 @@ class Instruction_ST_Z_II(Instruction):
         )
         # Z++
         do_u16_op_on_llil_tmp(
-            il, 'r30', 'r31',
+            il, 'r31', 'r30',
             lambda il: il.append(
                 il.set_reg(
                     2,
@@ -3930,7 +3934,7 @@ class Instruction_ST_Z_III(Instruction):
     def get_llil(self, il):
         # --Z
         do_u16_op_on_llil_tmp(
-            il, 'r30', 'r31',
+            il, 'r31', 'r30',
             lambda il: il.append(
                 il.set_reg(
                     2,

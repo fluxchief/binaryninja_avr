@@ -50,8 +50,8 @@ class OperandRegisterWide(Operand):
     @property
     def symbolic_value(self):
         return "{}:{}".format(
-            self._chip.registers[self._value],
-            self._chip.registers[self._value + 1]
+            self._chip.registers[self._value + 1],
+            self._chip.registers[self._value]
         )
 
     def llil_read(self, il):
@@ -66,6 +66,12 @@ class OperandRegisterWide(Operand):
             ),
             il.zero_extend(2, il.reg(1, self._chip.registers[self._value])),
         )
+
+    def low(self):
+        return self._chip.registers[self._value]
+
+    def high(self):
+        return self._chip.registers[self._value + 1]
 
 
 class OperandIORegister(Operand):
