@@ -255,52 +255,6 @@ class Instruction(object):
         """
         il.append(il.unimplemented())
 
-
-def do_u16_op_on_llil_tmp(il, rhigh, rlow, il_op_fn, tmp_idx=0):
-    if rlow in ['r26', 'r28', 'r30']:
-        # Use short form. TODO: Move this to some global place.
-        XYZ = {'r26': 'X', 'r28': 'Y', 'r30': 'Z'}
-        il.append(
-            il.set_reg(
-                2,
-                binaryninja.LLIL_TEMP(tmp_idx),
-                il.reg(2, XYZ[rlow]),
-            )
-        )
-
-        il_op_fn(il)
-
-        il.append(
-            il.set_reg(2, XYZ[rlow], il.reg(2, binaryninja.LLIL_TEMP(tmp_idx)))
-        )
-    else:
-        il.append(
-            il.set_reg(
-                2,
-                binaryninja.LLIL_TEMP(tmp_idx),
-                il.add(
-                    2,
-                    il.shift_left(
-                        2,
-                        il.zero_extend(2, il.reg(1, rhigh)),
-                        il.const(2, 8)
-                    ),
-                    il.zero_extend(2, il.reg(1, rlow))
-                )
-            )
-        )
-
-        il_op_fn(il)
-
-        il.append(
-            il.set_reg_split(
-                1,
-                rhigh, rlow,
-                il.reg(2, binaryninja.LLIL_TEMP(tmp_idx))
-            )
-        )
-
-
 # Returns RAMP* register if existing, otherwise zero.
 def get_ramp_register(il, chip, ramp):
     if ramp in chip.all_registers.values():
@@ -315,14 +269,14 @@ def get_ramp_register(il, chip, ramp):
         return il.const(1, 0)
 
 
-def get_xyz_register(il, chip, r):
+def get_xyz_register(il, chip, r, do_ramp=True):
     r = r.upper()
     assert r in ['X', 'Y', 'Z']
     # TODO: We 'support' RAMPX..RAMZ, however BN is unable to handle it in a way
     # that an access to a reg is shown:
     #   [REG].b = X vs [GPIO0 + (([RAMPZ].b << 0x10) | addrof(X))])
     # This is why we disable it here.
-    if False:
+    if False and do_ramp:
         # Use RAMPX/Y/Z register
         return il.or_expr(
             3,
@@ -401,20 +355,24 @@ class Instruction_ADIW(Instruction):
         return '1001 0110 KKdd KKKK'.replace(' ', '')
 
     def get_llil(self, il):
-        low = self._operands[0].low()
-        high = self._operands[0].high()
-        do_u16_op_on_llil_tmp(
-            il, high, low,
-            lambda il: il.append(
-                il.set_reg(
+        r0, r1 = self._operands[0].symbolic_value.split(':')
+        il.append(
+            il.set_reg_split(
+                1,
+                r1, r0,
+                il.add(
                     2,
-                    binaryninja.LLIL_TEMP(0),
                     il.add(
                         2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        self._operands[1].llil_read(il),
-                        'SVNZC'
-                    )
+                        il.shift_left(
+                            2,
+                            il.reg(1, r1),
+                            il.const(1, 8)
+                        ),
+                        il.reg(1, r0)
+                    ),
+                    self._operands[1].llil_read(il),
+                    'SVNZC'
                 )
             )
         )
@@ -1145,15 +1103,7 @@ class Instruction_EICALL(Instruction):
                     ),
                     il.load(
                         2,
-                        il.add(
-                            2,
-                            il.shift_left(
-                                2,
-                                il.zero_extend(2, il.reg(1, 'r31')),
-                                il.const(2, 8)
-                            ),
-                            il.zero_extend(2, il.reg(1, 'r30'))
-                        )
+                        get_xyz_register(il, self._chip, 'Z', do_ramp=False)
                     )
                 )
             )
@@ -1184,15 +1134,7 @@ class Instruction_EIJMP(Instruction):
                     ),
                     il.load(
                         2,
-                        il.add(
-                            2,
-                            il.shift_left(
-                                2,
-                                il.zero_extend(2, il.reg(1, 'r31')),
-                                il.const(2, 8)
-                            ),
-                            il.zero_extend(2, il.reg(1, 'r30'))
-                        )
+                        get_xyz_register(il, self._chip, 'Z', do_ramp=False)
                     )
                 )
             )
@@ -1215,23 +1157,7 @@ class Instruction_ELPM_I(Instruction):
                 'r0',
                 il.load(
                     1,
-                    il.or_expr(
-                        3,
-                        il.shift_left(
-                            3,
-                            get_ramp_register(il, self._chip, 'RAMPZ'),
-                            il.const(1, 16)
-                        ),
-                        il.zero_extend(3, il.add(
-                            2,
-                            il.shift_left(
-                                2,
-                                il.zero_extend(2, il.reg(1, 'r31')),
-                                il.const(2, 8)
-                            ),
-                            il.zero_extend(2, il.reg(1, 'r30'))
-                        ))
-                    )
+                    get_xyz_register(il, self._chip, 'Z')
                 )
             )
         )
@@ -1253,23 +1179,7 @@ class Instruction_ELPM_II(Instruction):
                 self._operands[0].symbolic_value,
                 il.load(
                     1,
-                    il.or_expr(
-                        3,
-                        il.shift_left(
-                            3,
-                            get_ramp_register(il, self._chip, 'RAMPZ'),
-                            il.const(1, 16)
-                        ),
-                        il.zero_extend(3, il.add(
-                            2,
-                            il.shift_left(
-                                2,
-                                il.zero_extend(2, il.reg(1, 'r31')),
-                                il.const(2, 8)
-                            ),
-                            il.zero_extend(2, il.reg(1, 'r30'))
-                        ))
-                    )
+                    get_xyz_register(il, self._chip, 'Z')
                 )
             )
         )
@@ -1291,15 +1201,7 @@ class Instruction_ELPM_III(Instruction):
                 self._operands[0].symbolic_value,
                 il.load(
                     1,
-                    il.or_expr(
-                        3,
-                        il.shift_left(
-                            3,
-                            get_ramp_register(il, self._chip, 'RAMPZ'),
-                            il.const(1, 16)
-                        ),
-                        il.zero_extend(3, il.reg(2, 'Z'))
-                    )
+                    get_xyz_register(il, self._chip, 'Z')
                 )
             )
         )
@@ -1405,15 +1307,7 @@ class Instruction_ICALL(Instruction):
             il.call(
                 il.load(
                     2,
-                    il.add(
-                        2,
-                        il.shift_left(
-                            2,
-                            il.zero_extend(2, il.reg(1, 'r31')),
-                            il.const(2, 8)
-                        ),
-                        il.zero_extend(2, il.reg(1, 'r30'))
-                    )
+                    get_xyz_register(il, self._chip, 'Z')
                 )
             )
         )
@@ -1431,15 +1325,7 @@ class Instruction_IJMP(Instruction):
             il.jump(
                 il.load(
                     2,
-                    il.add(
-                        2,
-                        il.shift_left(
-                            2,
-                            il.zero_extend(2, il.reg(1, 'r31')),
-                            il.const(2, 8)
-                        ),
-                        il.zero_extend(2, il.reg(1, 'r30'))
-                    )
+                    get_xyz_register(il, self._chip, 'Z')
                 )
             )
         )
@@ -2370,7 +2256,7 @@ class Instruction_LDS_16(Instruction):
 
         return [
             operand.OperandRegister(chip, d + 16),
-            operand.OperandImmediate(chip, k)
+            operand.OperandImmediate(chip, k + 0x40)
         ]
 
     def name(cls):
@@ -2438,15 +2324,7 @@ class Instruction_LPM_I(Instruction):
                 'r0',
                 il.load(
                     1,
-                    il.add(
-                        2,
-                        il.shift_left(
-                            2,
-                            il.zero_extend(2, il.reg(1, 'r31')),
-                            il.const(2, 8)
-                        ),
-                        il.zero_extend(2, il.reg(1, 'r30'))
-                    )
+                    get_xyz_register(il, self._chip, 'Z')
                 )
             )
         )
@@ -2502,15 +2380,7 @@ class Instruction_LPM_II(Instruction):
                 self._operands[0].symbolic_value,
                 il.load(
                     1,
-                    il.add(
-                        2,
-                        il.shift_left(
-                            2,
-                            il.zero_extend(2, il.reg(1, 'r31')),
-                            il.const(2, 8)
-                        ),
-                        il.zero_extend(2, il.reg(1, 'r30'))
-                    )
+                    get_xyz_register(il, self._chip, 'Z')
                 )
             )
         )
@@ -2569,7 +2439,7 @@ class Instruction_LPM_III(Instruction):
                 self._operands[0].symbolic_value,
                 il.load(
                     1,
-                    il.reg(2, 'Z')  # TODO: check ramp* reg usage here and everywhere else
+                    get_xyz_register(il, self._chip, 'Z')
                 )
             )
         )
@@ -3006,7 +2876,7 @@ class Instruction_ROL(Instruction):
                 self._operands[0].symbolic_value,
                 il.rotate_left_carry(
                     1,
-                    il.reg(1, self._operands[0].symbolic_value),
+                    self._operands[0].llil_read(il),
                     il.const(1, 1),
                     il.flag('C'),
                     flags='HSVNZC',
@@ -3027,7 +2897,7 @@ class Instruction_ROR(Instruction):
                 self._operands[0].symbolic_value,
                 il.rotate_right_carry(
                     1,
-                    il.reg(1, self._operands[0].symbolic_value),
+                    self._operands[0].llil_read(il),
                     il.const(1, 1),
                     il.flag('C'),
                     flags='HSVNZC',
@@ -3196,20 +3066,24 @@ class Instruction_SBIW(Instruction):
         return '1001 0111 KKdd KKKK'.replace(' ', '')
 
     def get_llil(self, il):
-        rlow = self._operands[0].low()
-        rhigh = self._operands[0].high()
-        do_u16_op_on_llil_tmp(
-            il, rhigh, rlow,
-            lambda il: il.append(
-                il.set_reg(
+        r0, r1 = self._operands[0].symbolic_value.split(':')
+        il.append(
+            il.set_reg_split(
+                1,
+                r1, r0,
+                il.sub(
                     2,
-                    binaryninja.LLIL_TEMP(0),
-                    il.sub(
+                    il.add(
                         2,
-                        il.reg(2, binaryninja.LLIL_TEMP(0)),
-                        self._operands[1].llil_read(il),
-                        flags='SVNZC'
-                    )
+                        il.shift_left(
+                            2,
+                            il.reg(1, r1),
+                            il.const(1, 8)
+                        ),
+                        il.reg(1, r0)
+                    ),
+                    self._operands[1].llil_read(il),
+                    'SVNZC'
                 )
             )
         )
@@ -4260,7 +4134,7 @@ class Instruction_STS_16(Instruction):
         r = args['r']
 
         return [
-            operand.OperandImmediate(chip, k),
+            operand.OperandImmediate(chip, k + 0x40),
             operand.OperandRegister(chip, r + 16)
         ]
 

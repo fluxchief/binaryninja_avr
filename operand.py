@@ -43,6 +43,8 @@ class OperandRegister(Operand):
 
 # Similar to OperandRegister, but consists out of two registers.
 class OperandRegisterWide(Operand):
+    SPECIAL_REGS = {26: 'X', 28: 'Y', 30: 'Z'}
+
     @property
     def immediate_value(self):
         return None
@@ -55,11 +57,15 @@ class OperandRegisterWide(Operand):
         )
 
     def llil_read(self, il):
+        if self._value in self.SPECIAL_REGS.keys():
+            return il.reg(2, self.SPECIAL_REGS[self._value])
+
         return il.or_expr(
             2,
             il.shift_left(
                 2,
-                il.zero_extend(2,
+                il.zero_extend(
+                    2,
                     il.reg(1, self._chip.registers[self._value + 1])
                 ),
                 il.const(1, 8)

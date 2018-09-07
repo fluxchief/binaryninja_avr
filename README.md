@@ -32,7 +32,8 @@ to write this plugin from scratch instead.
 4) Xrefs on memory.
 
 ## I found a bug!
-"Awesome"! Please create a ticket upload your sample there as well (if possible).
+"Awesome"! Please create a ticket and don't forget to upload your sample there
+as well (if possible).
 
 ## Known issues/limitations
 
