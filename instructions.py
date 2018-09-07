@@ -268,6 +268,20 @@ def get_ramp_register(il, chip, ramp):
     else:
         return il.const(1, 0)
 
+def get_reg_pair(il, rhigh, rlow):
+    repls = {'r26': 'X', 'r28': 'Y', 'r30': 'Z'}
+    if repls.get(rlow.lower()):
+        return il.reg(2, repls[rlow.lower()])
+    else:
+        return il.or_expr(
+            2,
+            il.shift_left(
+                2,
+                il.reg(1, rhigh),
+                il.const(1, 8)
+            ),
+            il.zero_extend(2, il.reg(1, rlow))
+        )
 
 def get_xyz_register(il, chip, r, do_ramp=True):
     r = r.upper()
@@ -355,22 +369,14 @@ class Instruction_ADIW(Instruction):
         return '1001 0110 KKdd KKKK'.replace(' ', '')
 
     def get_llil(self, il):
-        r0, r1 = self._operands[0].symbolic_value.split(':')
+        rhigh, rlow = self._operands[0].symbolic_value.split(':')
         il.append(
             il.set_reg_split(
                 1,
-                r1, r0,
+                rhigh, rlow,
                 il.add(
                     2,
-                    il.add(
-                        2,
-                        il.shift_left(
-                            2,
-                            il.reg(1, r1),
-                            il.const(1, 8)
-                        ),
-                        il.reg(1, r0)
-                    ),
+                    get_reg_pair(il, rhigh, rlow),
                     self._operands[1].llil_read(il),
                     'SVNZC'
                 )
@@ -2601,7 +2607,7 @@ class Instruction_MULS(Instruction):
         # TODO: verify signed result.
         il.append(
             il.set_reg_split(
-                2,
+                1,
                 'r1',
                 'r0',
                 il.mult(
@@ -2633,7 +2639,7 @@ class Instruction_MULSU(Instruction):
         # TODO: verify signed/unsigned result
         il.append(
             il.set_reg_split(
-                2,
+                1,
                 'r1',
                 'r0',
                 il.mult(
@@ -3066,22 +3072,14 @@ class Instruction_SBIW(Instruction):
         return '1001 0111 KKdd KKKK'.replace(' ', '')
 
     def get_llil(self, il):
-        r0, r1 = self._operands[0].symbolic_value.split(':')
+        rhigh, rlow = self._operands[0].symbolic_value.split(':')
         il.append(
             il.set_reg_split(
                 1,
-                r1, r0,
+                rhigh, rlow,
                 il.sub(
                     2,
-                    il.add(
-                        2,
-                        il.shift_left(
-                            2,
-                            il.reg(1, r1),
-                            il.const(1, 8)
-                        ),
-                        il.reg(1, r0)
-                    ),
+                    get_reg_pair(il, rhigh, rlow),
                     self._operands[1].llil_read(il),
                     'SVNZC'
                 )
