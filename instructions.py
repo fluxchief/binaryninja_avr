@@ -2368,10 +2368,43 @@ class Instruction_LPM_I(Instruction):
 
 
 class Instruction_LPM_II(Instruction):
-    # TODO: custom formatting.
     @classmethod
     def name(cls):
         return "lpm"
+
+    def get_instruction_text(self):
+        tokens = [
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
+                self.name()
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
+                ' '
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                self.operands[0].symbolic_value
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
+                ', '
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Z'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
+            ),
+        ]
+
+        return tokens
 
     @staticmethod
     def instruction_signature():
@@ -2399,11 +2432,47 @@ class Instruction_LPM_II(Instruction):
 
 
 class Instruction_LPM_III(Instruction):
-    # TODO: custom formatting.
     @classmethod
     def name(cls):
-        return "lpm+"
+        return "lpm"
 
+    def get_instruction_text(self):
+        tokens = [
+            InstructionTextToken(
+                InstructionTextTokenType.InstructionToken,
+                self.name()
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
+                ' '
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                self.operands[0].symbolic_value
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.OperandSeparatorToken,
+                ', '
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.BeginMemoryOperandToken,
+                '['
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.RegisterToken,
+                'Z'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.StringToken,
+                '+'
+            ),
+            InstructionTextToken(
+                InstructionTextTokenType.EndMemoryOperandToken,
+                ']'
+            ),
+        ]
+
+        return tokens
     @staticmethod
     def instruction_signature():
         return '1001 000d dddd 0101'.replace(' ', '')
