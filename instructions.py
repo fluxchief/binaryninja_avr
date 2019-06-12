@@ -4084,11 +4084,11 @@ class Instruction_STS_16(Instruction):
     @classmethod
     def args_to_operands(cls, chip, args):
         k = args['k']
-        d = args['d']
+        r = args['r']
 
         return [
             operand.OperandImmediate(chip, k),
-            operand.OperandRegister(chip, d + 16)
+            operand.OperandRegister(chip, r + 16)
         ]
 
     @classmethod
@@ -4108,7 +4108,7 @@ class Instruction_STS_16(Instruction):
                     il.const_pointer(3, RAM_SEGMENT_BEGIN),
                     il.zero_extend(3, self._operands[1].llil_read(il))
                 ),
-                self._operands[0].symbolic_value,
+                self._operands[0].llil_read(il),
             )
         )
 
