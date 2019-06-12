@@ -16,12 +16,12 @@ extract it in your BN plugins folder.
 1) This project aims for a better support of different chips. It currently has
 
  - ATMega16
+ - ATMega168
  - ATTiny48
  - ATTiny88
  - ATXMega128A4u
 
-support and can be easily extended. Due to current restrictions of binaryninja
-however, you need to hardcode the used chip in the `__init__.py`.
+support and can be easily extended.
 
 2) This plugin also lifts the AVR instructions. While I at first intended to add
 lifting to `binja-avr`, the changes would have been to large so that I decided
@@ -32,13 +32,10 @@ to write this plugin from scratch instead.
 4) Xrefs on memory.
 
 ## I found a bug!
-"Awesome"! Please create a ticket upload your sample there as well.
+"Awesome"! Please create a ticket upload your sample there as well (if possible).
 
 ## Known issues/limitations
 
- - No chip selection :/ Nothing we can do about at the moment (except for
-   nagging the user to select an MCU at startup which is not going to happen,
-   see issue #1, limitation of BN).
  - Memory accesses are weird. I had to place the data segment to an offset
    (currently 0x10 0000) because BN does not know about harvard architectures.
    This means if you have some offset in memory and want to look at this
@@ -46,6 +43,9 @@ to write this plugin from scratch instead.
    where BN could not resolve the address to look like this:
     `[GPIO0 + (123 | ((zx.w(r31) << 8) | (zx.w(r30))))].b`. GPIO0 is the first
    io register stored at RAM:0 (or 0x10 0000) - so you see where this is going.
+ - Subregisters are not shown as such. This is relevant for X/Y/Z registers
+   (r27:r26, r29:r28, r31:r30). The reason for this is a bug in BN that degrades
+   the result of lifting (See issue #4). Tl;dr: It looks better but xrefs break.
  - Memory is treated as volatile. This makes sense for memory mapped (e)IO
    registers but we don't really want to have it for the other memory area.
    However there is nothing we can do about it, so lifting is not as good as
