@@ -189,7 +189,7 @@ class Instruction(object):
         """
         Length of this instruction. In most cases this should be 2.
         """
-        return len(cls.instruction_signature()) / 8
+        return len(cls.instruction_signature()) // 8
 
     def get_instruction_text(self):
         name = self.name()
@@ -4454,7 +4454,7 @@ def parse_instruction(chip, addr, data):
         ins = INSTRUCTION_CACHE[u0]
         return ins.parse_value(chip, addr, data, v if ins.length() == 4 else u0)
 
-    for prefix_length, prefix_ins_list in INSTRUCTIONS_BY_PREFIX.iteritems():
+    for prefix_length, prefix_ins_list in INSTRUCTIONS_BY_PREFIX.items():
         prefix = u0 >> (16 - prefix_length)
         for ins in prefix_ins_list.get(prefix, []):
             if ins.length() > w:
