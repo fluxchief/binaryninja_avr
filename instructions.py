@@ -2926,47 +2926,16 @@ class Instruction_ROL(Instruction):
         return '0001 11rd dddd rrrr'.replace(' ', '')
 
     def get_llil(self, il):
-        # Set LLIL_TEMP(0) = op << 1 | c.
-        il.append(
-            il.set_reg(
-                2,
-                binaryninja.LLIL_TEMP(0),
-                il.or_expr(
-                    2,
-                    il.rotate_left(
-                        1,
-                        self._operands[0].llil_read(il),
-                        il.const(1, 1)
-                    ),
-                    il.flag('C')
-                )
-            )
-        )
-        # op_new = LLIL_TEMP(0) & 0xFF.
         il.append(
             il.set_reg(
                 1,
                 self._operands[0].symbolic_value,
-                il.and_expr(
+                il.rotate_left_carry(
                     1,
-                    il.reg(1, binaryninja.LLIL_TEMP(0)),
-                    il.const(1, 0xFF)
-                ),
-                flags='HSVNZ'
-            )
-        )
-        # C = LLIL_TEMP(0) >> 8 & 1.
-        il.append(
-            il.set_flag(
-                'C',
-                il.and_expr(
-                    1,
-                    il.logical_shift_right(
-                        1,
-                        il.reg(1, binaryninja.LLIL_TEMP(0)),
-                        il.const(1, 8)
-                    ),
-                    il.const(1, 1)
+                    il.reg(1, self._operands[0].symbolic_value),
+                    il.const(1, 1),
+                    il.flag('C'),
+                    flags='HSVNZC',
                 )
             )
         )
@@ -2978,48 +2947,17 @@ class Instruction_ROR(Instruction):
         return '1001 010d dddd 0111'.replace(' ', '')
 
     def get_llil(self, il):
-        # Set LLIL_TEMP(0) = c << 7 | op >> 1.
-        il.append(
-            il.set_reg(
-                2,
-                binaryninja.LLIL_TEMP(0),
-                il.or_expr(
-                    2,
-                    il.logical_shift_right(
-                        1,
-                        self._operands[0].llil_read(il),
-                        il.const(1, 1)
-                    ),
-                    il.rotate_left(
-                        1,
-                        il.flag('C'),
-                        il.const(1, 7)
-                    )
-                )
-            )
-        )
-        # C = op & 1.
-        il.append(
-            il.set_flag(
-                'C',
-                il.and_expr(
-                    1,
-                    self._operands[0].llil_read(il),
-                    il.const(1, 1)
-                )
-            )
-        )
-        # op_new = LLIL_TEMP(0) & 0xFF.
         il.append(
             il.set_reg(
                 1,
                 self._operands[0].symbolic_value,
-                il.and_expr(
+                il.rotate_right_carry(
                     1,
-                    il.reg(1, binaryninja.LLIL_TEMP(0)),
-                    il.const(1, 0xFF)
-                ),
-                flags='HSVNZ'
+                    il.reg(1, self._operands[0].symbolic_value),
+                    il.const(1, 1),
+                    il.flag('C'),
+                    flags='HSVNZC',
+                )
             )
         )
 
