@@ -1058,7 +1058,13 @@ class Instruction_CPSE(Instruction):
             binaryninja.log.log_warn(
                 "0x{:X}: Lifting: CPSE: We only got 2 bytes but we need more to predict the length of the next instruction".format(self._addr))
         else:
-            next_len = parse_instruction(self._chip, self._addr, self._data[2:]).length()
+            next_ins = parse_instruction(self._chip, self._addr, self._data[2:])
+            if next_ins:
+                next_len = next_ins.length()
+            else:
+                next_len = 2
+                binaryninja.log.log_warn(
+                    "0x{:X}: Lifting: CPSE: Next instruction invalid?".format(self._addr))
 
         t = binaryninja.LowLevelILLabel()
         f = binaryninja.LowLevelILLabel()

@@ -356,7 +356,15 @@ class AVRBinaryView(binaryninja.BinaryView):
 
             f = self.get_function_at(isr_addr)
             f.name = "j_{}".format(v)
-            jmp_target = f.medium_level_il[0].operands[0].operands[0]
+            try:
+                jmp_target = f.medium_level_il[0].operands[0].operands[0]
+            except:
+                binaryninja.log.log_error(
+                    "Failed to parse jump target at 0x{:X} - incorrect chip?"
+                    .format(isr_addr)
+                )
+                jmp_target = None
+
             if jmp_target:
                 if not self.get_function_at(jmp_target):
                     self.add_function(jmp_target)

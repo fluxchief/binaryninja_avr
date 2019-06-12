@@ -81,15 +81,14 @@ class OperandIORegister(Operand):
 
     @property
     def symbolic_value(self):
-        return self._chip.IO_REGISTERS[self._value]
+        return self._chip.IO_REGISTERS.get(self._value, "UNKNOWN_IO_{}".format(self._value))
 
     def llil_read(self, il):
         return il.load(
             1,
             il.const(
                 3,
-                self._chip.get_register_offset(
-                    self.symbolic_value) + RAM_SEGMENT_BEGIN
+                self._value + RAM_SEGMENT_BEGIN
             )
         )
 
