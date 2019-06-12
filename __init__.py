@@ -4,15 +4,25 @@ Awesome binaryninja AVR disassembler/lifter plugin.
 import binascii
 import struct
 
-# Load all chips
+from binaryninja_avr import instructions
+from binaryninja_avr.instructions import RAM_SEGMENT_BEGIN
+
+
+# TODO: This is ugly as hell. There should be some way to do this without
+#       getting in some nasty dependency loop.
 import binaryninja_avr.chips.iom16
 import binaryninja_avr.chips.iom168
 import binaryninja_avr.chips.iotn48
 import binaryninja_avr.chips.iotn88
 import binaryninja_avr.chips.iox128a4u
+ALL_CHIPS = [
+    binaryninja_avr.chips.iom16.IOM16,
+    binaryninja_avr.chips.iom168.IOM168,
+    binaryninja_avr.chips.iotn48.IOTn48,
+    binaryninja_avr.chips.iotn88.IOTn88,
+    binaryninja_avr.chips.iox128a4u.IOX128A4U,
+]
 
-from binaryninja_avr import instructions
-from binaryninja_avr.instructions import RAM_SEGMENT_BEGIN
 
 import binaryninja
 from binaryninja import (
@@ -30,13 +40,7 @@ class AVR(binaryninja.Architecture):
     # twice the maximum value
     max_instr_length = 2 * 4
 
-    # Ideally we want some select box here, no support in BN for this yet.
-
-    # chip = binaryninja_avr.chips.iom16.IOM16()
-    # chip = binaryninja_avr.chips.iotn48.IOTn48()
-    # chip = binaryninja_avr.chips.iotn88.IOTn88()
-    # chip = binaryninja_avr.chips.iom168.IOM168()
-    chip = binaryninja_avr.chips.iox128a4u.IOX128A4U()
+    chip = None
 
     regs = {
         'r0': binaryninja.RegisterInfo('r0', 1),
@@ -297,6 +301,22 @@ class AVRBinaryView(binaryninja.BinaryView):
             self.undefine_auto_symbol(s)
 
     def init(self):
+        chip = ALL_CHIPS[
+            binaryninja.interaction.get_choice_input(
+                "Target chip",
+                "Select target chip",
+                [
+                    ' '.join(c.CHIP_ALIASES)
+                    for c in ALL_CHIPS
+                ],
+            )
+        ]
+
+        # Setting this somewhat globally.
+        # TODO: Figure out if there is a way to have separate instances for each
+        #       open window / tab.
+        AVR.chip = chip()
+
         if len(self.raw) > AVR.chip.ROM_SIZE:
             binaryninja.log.log_error("AVR: Rom too big for this chip")
             return False
