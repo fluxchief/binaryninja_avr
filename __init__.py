@@ -39,7 +39,9 @@ class AVR(binaryninja.Architecture):
     # the next instruction as well for some lifting reason, this is why we chose
     # twice the maximum value
     max_instr_length = 2 * 4
+    instr_alignment = 2
 
+    # Will be set in the binary view.
     chip = None
 
     regs = {
@@ -78,10 +80,12 @@ class AVR(binaryninja.Architecture):
         'SP': binaryninja.RegisterInfo('SP', 2),
     }
 
+    # Kept as '0' most of the times
+    global_regs = ['r1']
+
     stack_pointer = 'SP'
     flags = ['C', 'Z', 'N', 'V', 'S', 'H', 'T', 'I']
     flag_write_types = [
-        '',  # https://github.com/Vector35/binaryninja-api/issues/513
         '*',
         'HSVNZC',
         'HSVNZ',
@@ -91,7 +95,6 @@ class AVR(binaryninja.Architecture):
     ]
 
     flags_written_by_flag_write_type = {
-        '': [],
         '*': ['C', 'Z', 'N', 'V', 'S', 'H', 'T', 'I'],
         'HSVNZC': ['H', 'S', 'V', 'N', 'Z', 'C'],
         'HSVNZ': ['H', 'S', 'V', 'N', 'Z'],
@@ -134,13 +137,16 @@ class AVR(binaryninja.Architecture):
     def _is_conditional_branch(self, ins):
         return isinstance(ins, instructions.Instruction_BR_Abstract)
 
-    def perform_get_instruction_info(self, data, addr):
+    def get_instruction_info(self, data, addr):
         nfo = binaryninja.InstructionInfo()
         ins = self._get_instruction(data, addr)
         if not ins:
             # Failsafe: Assume 2 bytes if we couldn't decode the instruction.
+            # This should only happen if this is indeed an incorrect instruction
+            # but for some reason BN tries to disassemble random data sometimes
+            # and will show warnings if nfo.length == 0.
             binaryninja.log.log_warn(
-                "Could not get instruction @ 0x{:X}, assuming len=2".format(
+                "Could not parse instruction @ 0x{:X}".format(
                     addr
                 )
             )
@@ -230,7 +236,7 @@ class AVR(binaryninja.Architecture):
 
         return nfo
 
-    def perform_get_instruction_text(self, data, addr):
+    def get_instruction_text(self, data, addr):
         ins = self._get_instruction(data, addr)
         if not ins:
             return [
@@ -244,38 +250,43 @@ class AVR(binaryninja.Architecture):
 
         return ins.get_instruction_text(), ins.length()
 
-    def perform_get_instruction_low_level_il(self, data, addr, il):
+    def get_instruction_low_level_il(self, data, addr, il):
         ins = self._get_instruction(data, addr)
         if ins:
             ins.get_llil(il)
             return ins.length()
         else:
-            il.append(il.unimplemented())
-            return 2
+            binaryninja.log_warn(
+                "Could not parse instruction @ 0x{:08X}".format(
+                    addr
+                )
+            )
+            il.append(il.no_ret())
+            return 0
 
-    def perform_is_never_branch_patch_available(self, data, addr):
+    def is_never_branch_patch_available(self, data, addr):
         ins = self._get_instruction(data, addr)
         return self._is_conditional_branch(ins)
 
-    def perform_is_always_branch_patch_available(self, data, addr):
+    def is_always_branch_patch_available(self, data, addr):
         ins = self._get_instruction(data, addr)
         return self._is_conditional_branch(ins)
 
-    def perform_always_branch(self, data, addr):
+    def always_branch(self, data, addr):
         ins = self._get_instruction(data, addr)
         dst = ins._operands[0]
         v = (dst.immediate_value - 2) / 2
         v = (v & 0xFFF) | 0xc000
         return struct.pack('<H', v)
 
-    def perform_never_branch(self, data, addr):
+    def never_branch(self, data, addr):
         return "\x00\x00"
 
-    def perform_convert_to_nop(self, data, addr):
+    def convert_to_nop(self, data, addr):
         return "\x00\x00"
 
     """
-    def perform_get_flag_write_low_level_il(self, op, size, write_type, flag, operands, il):
+    def get_flag_write_low_level_il(self, op, size, write_type, flag, operands, il):
         return
     """
 
@@ -377,7 +388,7 @@ class AVRBinaryView(binaryninja.BinaryView):
             f = self.get_function_at(isr_addr)
             f.name = "j_{}".format(v)
             try:
-                jmp_target = f.medium_level_il[0].operands[0].operands[0]
+                jmp_target = f.lifted_il[0].operands[0].operands[0]
             except:
                 binaryninja.log.log_error(
                     "Failed to parse jump target at 0x{:X} - incorrect chip?"
@@ -395,10 +406,10 @@ class AVRBinaryView(binaryninja.BinaryView):
         self.add_entry_point(0)
         return True
 
-    def perform_is_executable(self):
+    def is_executable(self):
         return True
 
-    def perform_get_entry_point(self):
+    def get_entry_point(self):
         return 0
 
     @classmethod
@@ -407,5 +418,9 @@ class AVRBinaryView(binaryninja.BinaryView):
 
 
 AVR.register()
+arch = binaryninja.Architecture[AVR.name]
+arch.register_calling_convention(DefaultCallingConvention(arch, 'default'))
+
+arch.standalone_platform.default_calling_convention = arch.calling_conventions['default']
 AVRBinaryView.register()
 
