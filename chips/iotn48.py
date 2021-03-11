@@ -128,3 +128,11 @@ class IOTn48(Chip):
         0xBE: 'TWIHSR',
         0xBE: 'TWHSR',
     }
+
+    @staticmethod
+    def description():
+        return "ATtiny48"
+
+    @staticmethod
+    def identifier():
+        return __class__.__name__

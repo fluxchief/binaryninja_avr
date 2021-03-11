@@ -209,3 +209,11 @@ class IOM16(Chip):
         0xF3: 'UEBCHX',
         0xF4: 'UEINT',
     }
+
+    @staticmethod
+    def description():
+        return "ATMega16"
+
+    @staticmethod
+    def identifier():
+        return __class__.__name__

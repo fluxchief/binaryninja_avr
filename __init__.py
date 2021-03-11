@@ -312,16 +312,17 @@ class AVRBinaryView(binaryninja.BinaryView):
             self.undefine_auto_symbol(s)
 
     def init(self):
-        chip = ALL_CHIPS[
-            binaryninja.interaction.get_choice_input(
-                "Target chip",
-                "Select target chip",
-                [
-                    ' '.join(c.CHIP_ALIASES)
-                    for c in ALL_CHIPS
-                ],
-            )
-        ]
+        load_settings = self.get_load_settings(self.name)
+        if load_settings is None:
+            load_settings = self.__class__.get_load_settings_for_data(self.parent_view)
+
+        chip_id = load_settings.get_string("avr.chip", self)
+        chip = [c for c in ALL_CHIPS if chip_id == c.identifier()]
+
+        if len(chip) != 1:
+            binaryninja.log.log_error("AVR: No chip selected")
+            return False
+        chip = chip[0]
 
         # Setting this somewhat globally.
         # TODO: Figure out if there is a way to have separate instances for each
@@ -415,6 +416,28 @@ class AVRBinaryView(binaryninja.BinaryView):
     @classmethod
     def is_valid_for_data(self, data):
         return True
+
+    @classmethod
+    def get_load_settings_for_data(cls, data):
+        load_settings = binaryninja.Settings("avr")
+
+        load_settings.register_group("avr", "AVR")
+        load_settings.register_setting("avr.chip","""
+        {{
+            "title": "AVR chip",
+            "type": "string",
+            "default": "{}",
+            "description" : "Chip running the firmware to be analyzed.",
+            "enum": [{}],
+            "enumDescriptions": [{}]
+        }}
+        """.format(
+            ALL_CHIPS[0].identifier(),
+            ', '.join(['"{}"'.format(c.identifier()) for c in ALL_CHIPS]),
+            ', '.join(['"{}"'.format(c.description()) for c in ALL_CHIPS])
+        ))
+
+        return load_settings
 
 
 AVR.register()

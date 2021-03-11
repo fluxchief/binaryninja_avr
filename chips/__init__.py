@@ -38,6 +38,16 @@ class Chip(object):
     IO_REGISTERS = {}
     EXTENDED_IO_REGISTERS = {}
 
+    @abstractstatic
+    def description():
+        # Description of this chip
+        pass
+
+    @abstractstatic
+    def identifier():
+        # Unique identifier of this chip
+        pass
+
     def __init__(self):
         # Caching stuff.
         self.__reg_name_to_offset = {

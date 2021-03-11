@@ -152,3 +152,11 @@ class IOM168(Chip):
         0xC5: 'UBRR0H',
         0xC6: 'UDR0',
     }
+
+    @staticmethod
+    def description():
+        return "ATMega168"
+
+    @staticmethod
+    def identifier():
+        return __class__.__name__

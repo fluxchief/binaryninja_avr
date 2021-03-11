@@ -774,3 +774,11 @@ class IOX128A4U(Chip):
         0xAA6: 'USARTE0_BAUDCTRLA',
         0xAA7: 'USARTE0_BAUDCTRLB',
     }
+
+    @staticmethod
+    def description():
+        return "ATMega128A4U"
+
+    @staticmethod
+    def identifier():
+        return __class__.__name__
