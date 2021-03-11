@@ -2,8 +2,8 @@ import abc
 import collections
 import struct
 
-from binaryninja_avr import operand
-from binaryninja_avr.operand import RAM_SEGMENT_BEGIN
+from . import operand
+from .operand import RAM_SEGMENT_BEGIN
 
 try:
     import binaryninja

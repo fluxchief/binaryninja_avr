@@ -1,7 +1,7 @@
-import binaryninja_avr.chips
+from . import Chip
 
 
-class IOM16(binaryninja_avr.chips.Chip):
+class IOM16(Chip):
     """
     ATMega16
     """

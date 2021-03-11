@@ -4,23 +4,23 @@ Awesome binaryninja AVR disassembler/lifter plugin.
 import binascii
 import struct
 
-from binaryninja_avr import instructions
-from binaryninja_avr.instructions import RAM_SEGMENT_BEGIN
+from . import instructions
+from .instructions import RAM_SEGMENT_BEGIN
 
 
 # TODO: This is ugly as hell. There should be some way to do this without
 #       getting in some nasty dependency loop.
-import binaryninja_avr.chips.iom16
-import binaryninja_avr.chips.iom168
-import binaryninja_avr.chips.iotn48
-import binaryninja_avr.chips.iotn88
-import binaryninja_avr.chips.iox128a4u
+from .chips.iom16 import IOM16
+from .chips.iom168 import IOM168
+from .chips.iotn48 import IOTn48
+from .chips.iotn88 import IOTn88
+from .chips.iox128a4u import IOX128A4U
 ALL_CHIPS = [
-    binaryninja_avr.chips.iom16.IOM16,
-    binaryninja_avr.chips.iom168.IOM168,
-    binaryninja_avr.chips.iotn48.IOTn48,
-    binaryninja_avr.chips.iotn88.IOTn88,
-    binaryninja_avr.chips.iox128a4u.IOX128A4U,
+    IOM16,
+    IOM168,
+    IOTn48,
+    IOTn88,
+    IOX128A4U,
 ]
 
 

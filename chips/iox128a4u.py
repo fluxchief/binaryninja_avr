@@ -1,7 +1,7 @@
-import binaryninja_avr.chips
+from . import Chip
 
 
-class IOX128A4U(binaryninja_avr.chips.Chip):
+class IOX128A4U(Chip):
     """
     XMega128A4U
     """

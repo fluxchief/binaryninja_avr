@@ -1,7 +1,7 @@
-import binaryninja_avr.chips
+from . import Chip
 
 
-class IOTn88(binaryninja_avr.chips.Chip):
+class IOTn88(Chip):
     """
     ATTiny88
     """
