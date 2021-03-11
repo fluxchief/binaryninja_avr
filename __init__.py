@@ -41,7 +41,7 @@ class AVR(binaryninja.Architecture):
     max_instr_length = 2 * 4
     instr_alignment = 2
 
-    # Will be set in the binary view.
+    # Will be set during `init()`
     chip = None
 
     regs = {
@@ -132,7 +132,7 @@ class AVR(binaryninja.Architecture):
     }
 
     def _get_instruction(self, data, addr):
-        return instructions.parse_instruction(self.chip, addr, data)
+        return instructions.parse_instruction(AVR.chip, addr, data)
 
     def _is_conditional_branch(self, ins):
         return isinstance(ins, instructions.Instruction_BR_Abstract)
@@ -157,10 +157,10 @@ class AVR(binaryninja.Architecture):
 
         if self._is_conditional_branch(ins):
             v = addr + ins.operands[0].immediate_value
-            if v >= self.chip.ROM_SIZE:
-                v -= self.chip.ROM_SIZE
+            if v >= AVR.chip.ROM_SIZE:
+                v -= AVR.chip.ROM_SIZE
             elif v < 0:
-                v += self.chip.ROM_SIZE
+                v += AVR.chip.ROM_SIZE
 
             nfo.add_branch(
                 BranchType.TrueBranch,
@@ -204,10 +204,10 @@ class AVR(binaryninja.Architecture):
             nfo.add_branch(BranchType.FunctionReturn)
         elif (isinstance(ins, instructions.Instruction_RCALL)):
             v = addr + ins.operands[0].immediate_value
-            if v >= self.chip.ROM_SIZE:
-                v -= self.chip.ROM_SIZE
+            if v >= AVR.chip.ROM_SIZE:
+                v -= AVR.chip.ROM_SIZE
             elif v < 0:
-                v += self.chip.ROM_SIZE
+                v += AVR.chip.ROM_SIZE
 
             nfo.add_branch(
                 BranchType.CallDestination,
@@ -215,10 +215,10 @@ class AVR(binaryninja.Architecture):
             )
         elif (isinstance(ins, instructions.Instruction_RJMP)):
             v = addr + ins.operands[0].immediate_value
-            if v >= self.chip.ROM_SIZE:
-                v -= self.chip.ROM_SIZE
+            if v >= AVR.chip.ROM_SIZE:
+                v -= AVR.chip.ROM_SIZE
             elif v < 0:
-                v += self.chip.ROM_SIZE
+                v += AVR.chip.ROM_SIZE
 
             nfo.add_branch(
                 BranchType.UnconditionalBranch,
