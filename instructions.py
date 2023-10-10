@@ -1025,7 +1025,7 @@ class Instruction_CPSE(Instruction):
 
     def get_llil(self, il):
         if len(self._data) == 2:
-            # We only got this instruction, WHY!
+            # We only got this instruction, cannot determine length of next ins.
             # Assume next instruction has two bytes
             next_len = 2
             binaryninja.log.log_warn(
@@ -2995,6 +2995,21 @@ class Instruction_SkipInstruction_Abstract(Instruction):
         pass
 
     def get_llil(self, il):
+        if len(self._data) == 2:
+            # We only got this instruction, cannot determine length of next ins.
+            # Assume next instruction has two bytes
+            next_len = 2
+            binaryninja.log.log_warn(
+                "0x{:X}: Lifting: SB**: We only got 2 bytes but we need more to predict the length of the next instruction".format(self._addr))
+        else:
+            next_ins = parse_instruction(self._chip, self._addr, self._data[2:])
+            if next_ins:
+                next_len = next_ins.length()
+            else:
+                next_len = 2
+                binaryninja.log.log_warn(
+                    "0x{:X}: Lifting: SB**: Next instruction invalid?".format(self._addr))
+
         t = binaryninja.LowLevelILLabel()
         f = binaryninja.LowLevelILLabel()
         il.append(
@@ -3006,7 +3021,7 @@ class Instruction_SkipInstruction_Abstract(Instruction):
         )
 
         il.mark_label(t)
-        il.append(il.jump(il.const(3, self._addr + 4)))
+        il.append(il.jump(il.const(3, self._addr + 2 + next_len)))
         il.mark_label(f)
 
 
