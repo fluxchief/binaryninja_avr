@@ -336,7 +336,7 @@ class AVRBinaryView(binaryninja.BinaryView):
         #       open window / tab.
         AVR.chip = chip()
 
-        if len(self.raw) > AVR.chip.ROM_SIZE:
+        if self.raw.length > AVR.chip.ROM_SIZE:
             binaryninja.log.log_error("AVR: Rom too big for this chip")
             return False
 
@@ -345,7 +345,7 @@ class AVRBinaryView(binaryninja.BinaryView):
 
         self.add_auto_segment(
             0, AVR.chip.ROM_SIZE,
-            0, len(self.raw),
+            0, self.raw.length,
             SegmentFlag.SegmentReadable | SegmentFlag.SegmentExecutable
         )
         self.add_auto_section("ROM", 0, AVR.chip.ROM_SIZE,
@@ -414,11 +414,14 @@ class AVRBinaryView(binaryninja.BinaryView):
         self.add_entry_point(0)
         return True
 
-    def is_executable(self):
+    def perform_is_executable(self):
         return True
 
-    def get_entry_point(self):
+    def perform_get_entry_point(self):
         return 0
+
+    def perform_get_address_size(self):
+        return AVR.address_size
 
     @classmethod
     def is_valid_for_data(self, data):
