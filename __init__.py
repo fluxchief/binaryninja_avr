@@ -184,13 +184,16 @@ class AVR(binaryninja.Architecture):
             instructions.Instruction_SBIC,
             instructions.Instruction_SBIS,
         ]:
-            # TODO: This should skip a whole instruction but we don't know how
-            # big the next instruction is (2 or 4 bytes).
-            # Assume two bytes for now as it is pretty much always followed by a
-            # rjmp
+            if len(data) > 2:
+                next_ins_len = self._get_instruction(data[2:], addr + 2).length()
+            else:
+                next_ins_len = 2
+                binaryninja.log.log_warn(
+                    "0x{:X}: get_instruction_info: We only got 2 bytes but we need more to predict the length of the next instruction".format(self._addr))
+
             nfo.add_branch(
                 BranchType.TrueBranch,
-                addr + 4
+                addr + 2 + next_ins_len
             )
             nfo.add_branch(
                 BranchType.FalseBranch,
@@ -389,6 +392,7 @@ class AVRBinaryView(binaryninja.BinaryView):
 
         # Create ISR once the analysis has finished
         def _create_isr(event):
+            return
             bv = event.view
             for i, v in enumerate(AVR.chip.INTERRUPT_VECTORS):
                 isr_addr = i * AVR.chip.INTERRUPT_VECTOR_SIZE

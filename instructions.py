@@ -498,15 +498,19 @@ class Instruction_BR_Abstract(Instruction):
 
     def get_llil(self, il):
         dst = self._operands[0]
-        rel_addr = dst.immediate_value + self._addr
-        if rel_addr >= self._chip.ROM_SIZE:
-            rel_addr -= self._chip.ROM_SIZE
-        elif rel_addr < 0:
-            rel_addr += self._chip.ROM_SIZE
+        abs_addr = dst.immediate_value + self._addr
+        if abs_addr >= self._chip.ROM_SIZE:
+            abs_addr -= self._chip.ROM_SIZE
+        elif abs_addr < 0:
+            abs_addr += self._chip.ROM_SIZE
 
-        # TODO: Check whether we should use `get_label_for_address` here.
-        t = binaryninja.LowLevelILLabel()
         f = binaryninja.LowLevelILLabel()
+        label = il.get_label_for_address(binaryninja.Architecture['AVR'], abs_addr)
+        if label is not None:
+            t = label
+        else:
+            t = binaryninja.LowLevelILLabel()
+
         il.append(
             il.if_expr(
                 self.get_llil_condition(il),
@@ -514,9 +518,9 @@ class Instruction_BR_Abstract(Instruction):
                 f,
             )
         )
-
-        il.mark_label(t)
-        il.append(il.jump(il.const(3, rel_addr)))
+        if label is None:
+            il.mark_label(t)
+            il.append(il.jump(il.const(3, abs_addr)))
         il.mark_label(f)
 
 
@@ -1039,8 +1043,12 @@ class Instruction_CPSE(Instruction):
                 binaryninja.log.log_warn(
                     "0x{:X}: Lifting: CPSE: Next instruction invalid?".format(self._addr))
 
-        t = binaryninja.LowLevelILLabel()
         f = binaryninja.LowLevelILLabel()
+        label = il.get_label_for_address(binaryninja.Architecture['AVR'], self._addr + 2 + next_len)
+        if label is not None:
+            t = label
+        else:
+            t = binaryninja.LowLevelILLabel()
         il.append(
             il.if_expr(
                 il.compare_equal(
@@ -1053,15 +1061,9 @@ class Instruction_CPSE(Instruction):
             )
         )
 
-        il.mark_label(t)
-        il.append(
-            il.jump(
-                il.const(
-                    3,
-                    self._addr + 2 + next_len
-                )
-            )
-        )
+        if label is None:
+            il.mark_label(t)
+            il.append(il.jump(il.const(3, self._addr + 2 + next_len)))
         il.mark_label(f)
 
 
@@ -1374,7 +1376,12 @@ class Instruction_JMP(Instruction):
         return '1001 010k kkkk 110k kkkk kkkk kkkk kkkk'.replace(' ', '')
 
     def get_llil(self, il):
-        il.append(il.jump(self._operands[0].llil_read(il)))
+        addr = self._operands[0].immediate_value
+        label = il.get_label_for_address(binaryninja.Architecture['AVR'], addr)
+        if label:
+            il.append(il.goto(label))
+        else:
+            il.append(il.jump(self._operands[0].llil_read(il)))
 
 
 class Instruction_LAC(Instruction):
@@ -2829,11 +2836,11 @@ class Instruction_RJMP(Instruction):
         if taddr >= self._chip.ROM_SIZE:
             taddr -= self._chip.ROM_SIZE
 
-        il.append(
-            il.jump(
-                il.const(3, taddr)
-            )
-        )
+        label = il.get_label_for_address(binaryninja.Architecture['AVR'], taddr)
+        if label:
+            il.append(il.goto(label))
+        else:
+            il.append(il.jump(il.const(3, taddr)))
 
 
 class Instruction_ROL(Instruction):
@@ -3010,8 +3017,13 @@ class Instruction_SkipInstruction_Abstract(Instruction):
                 binaryninja.log.log_warn(
                     "0x{:X}: Lifting: SB**: Next instruction invalid?".format(self._addr))
 
-        t = binaryninja.LowLevelILLabel()
         f = binaryninja.LowLevelILLabel()
+        label = il.get_label_for_address(binaryninja.Architecture['AVR'], self._addr + 2 + next_len)
+        if label is not None:
+            t = label
+        else:
+            t = binaryninja.LowLevelILLabel()
+
         il.append(
             il.if_expr(
                 self._get_llil_condition(il),
@@ -3020,8 +3032,9 @@ class Instruction_SkipInstruction_Abstract(Instruction):
             )
         )
 
-        il.mark_label(t)
-        il.append(il.jump(il.const(3, self._addr + 2 + next_len)))
+        if label is None:
+            il.mark_label(t)
+            il.append(il.jump(il.const(3, self._addr + 2 + next_len)))
         il.mark_label(f)
 
 
