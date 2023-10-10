@@ -387,30 +387,33 @@ class AVRBinaryView(binaryninja.BinaryView):
                               AVR.chip.RAM_SIZE,
                               SectionSemantics.ReadWriteDataSectionSemantics)
 
-        # Create ISR table.
-        for i, v in enumerate(AVR.chip.INTERRUPT_VECTORS):
-            isr_addr = i * AVR.chip.INTERRUPT_VECTOR_SIZE
-            if not self.get_function_at(isr_addr):
-                self.add_function(isr_addr)
+        # Create ISR once the analysis has finished
+        def _create_isr(event):
+            bv = event.view
+            for i, v in enumerate(AVR.chip.INTERRUPT_VECTORS):
+                isr_addr = i * AVR.chip.INTERRUPT_VECTOR_SIZE
+                if not self.get_function_at(isr_addr):
+                    bv.add_function(isr_addr)
 
-            f = self.get_function_at(isr_addr)
-            f.name = "j_{}".format(v)
-            try:
-                jmp_target = f.lifted_il[0].operands[0].operands[0]
-            except:
-                binaryninja.log.log_error(
-                    "Failed to parse jump target at 0x{:X} - incorrect chip?"
-                    .format(isr_addr)
-                )
-                jmp_target = None
+                f = bv.get_function_at(isr_addr)
+                f.name = "j_{}".format(v)
+                try:
+                    jmp_target = int(f.llil[0].operands[0])
+                except Exception as e:
+                    binaryninja.log.log_error(
+                        "Failed to parse jump target at 0x{:X} - incorrect chip? ({})"
+                        .format(isr_addr, e)
+                    )
+                    jmp_target = None
 
-            if jmp_target:
-                if not self.get_function_at(jmp_target):
-                    self.add_function(jmp_target)
+                if jmp_target:
+                    if not self.get_function_at(jmp_target):
+                        bv.add_function(jmp_target)
 
-                if self.get_function_at(jmp_target).name == "sub_{:x}".format(jmp_target):
-                    self.get_function_at(jmp_target).name = v
+                    if self.get_function_at(jmp_target).name == "sub_{:x}".format(jmp_target):
+                        bv.get_function_at(jmp_target).name = v
 
+        self.add_analysis_completion_event(_create_isr)
         self.add_entry_point(0)
         return True
 
