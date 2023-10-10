@@ -1107,10 +1107,7 @@ class Instruction_EICALL(Instruction):
                         ),
                         il.const(1, 16)
                     ),
-                    il.load(
-                        2,
-                        get_xyz_register(il, self._chip, 'Z', do_ramp=False)
-                    )
+                    get_xyz_register(il, self._chip, 'Z', do_ramp=False)
                 )
             )
         )
@@ -1138,10 +1135,7 @@ class Instruction_EIJMP(Instruction):
                         ),
                         il.const(1, 16)
                     ),
-                    il.load(
-                        2,
-                        get_xyz_register(il, self._chip, 'Z', do_ramp=False)
-                    )
+                    get_xyz_register(il, self._chip, 'Z', do_ramp=False)
                 )
             )
         )
@@ -1302,7 +1296,7 @@ class Instruction_FMULSU(Instruction):
 
 
 class Instruction_ICALL(Instruction):
-    # Calls [Z]
+    # Calls Z
 
     @staticmethod
     def instruction_signature():
@@ -1311,16 +1305,13 @@ class Instruction_ICALL(Instruction):
     def get_llil(self, il):
         il.append(
             il.call(
-                il.load(
-                    2,
-                    get_xyz_register(il, self._chip, 'Z')
-                )
+                get_xyz_register(il, self._chip, 'Z')
             )
         )
 
 
 class Instruction_IJMP(Instruction):
-    # Jumps to [Z]
+    # Jumps to Z
 
     @staticmethod
     def instruction_signature():
@@ -1329,10 +1320,7 @@ class Instruction_IJMP(Instruction):
     def get_llil(self, il):
         il.append(
             il.jump(
-                il.load(
-                    2,
-                    get_xyz_register(il, self._chip, 'Z')
-                )
+                get_xyz_register(il, self._chip, 'Z')
             )
         )
 
