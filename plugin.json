@@ -25,6 +25,6 @@
       "Windows": "",
       "Linux": ""
    },
-   "version": "0.3",
-   "minimumbinaryninjaversion": 1000
+   "version": "0.4",
+   "minimumbinaryninjaversion": 1200
 }
