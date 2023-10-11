@@ -1,6 +1,6 @@
 # Binary Ninja AVR plugin
-This plugin adds support for the AVR architecture to binaryninja. Most of the
-instructions can be lifted (mostly) correctly.
+This plugin adds support for the AVR architecture to binaryninja. All instructions
+should be implemented, lifting is mostly implemented.
 
 ![Disassembly](https://github.com/fluxchief/binaryninja_avr/blob/master/img/disas.png "Disassembly")
 ![Lifted](https://github.com/fluxchief/binaryninja_avr/blob/master/img/lifted.png "Lifted")
@@ -16,7 +16,7 @@ extract it in your BN plugins folder.
 1) This project aims for a better support of different chips. It currently has
 
  - ATMega16
- - ATMega168
+ - ATMega168 / ATMega328
  - ATTiny48
  - ATTiny88
  - ATXMega128A4u
@@ -27,7 +27,7 @@ support and can be easily extended.
 lifting to `binja-avr`, the changes would have been to large so that I decided
 to write this plugin from scratch instead.
 
-3) Interrupt vectors are defined automatically.
+3) Interrupt vectors are defined automatically. (currently disabled, see issue #5).
 
 4) Xrefs on memory.
 
@@ -37,29 +37,15 @@ as well (if possible).
 
 ## Known issues/limitations
 
- - Memory accesses are weird. I had to place the data segment to an offset
-   (currently 0x10 0000) because BN does not know about harvard architectures.
-   This means if you have some offset in memory and want to look at this
-   address, add 0x10 0000). This also causes memory access in medium IL view
-   where BN could not resolve the address to look like this:
-    `[GPIO0 + (123 | ((zx.w(r31) << 8) | (zx.w(r30))))].b`. GPIO0 is the first
-   io register stored at RAM:0 (or 0x10 0000) - so you see where this is going.
- - Subregisters are not shown as such. This is relevant for X/Y/Z registers
-   (r27:r26, r29:r28, r31:r30). The reason for this is a bug in BN that degrades
-   the result of lifting (See issue #4). Tl;dr: It looks better but xrefs break.
- - Memory is treated as volatile. This makes sense for memory mapped (e)IO
-   registers but we don't really want to have it for the other memory area.
-   However there is nothing we can do about it, so lifting is not as good as
-   it could be.
  - RAMPX/RAMPY/RAMPZ not used - This isn't lifted as much as it could be and
    decreases the readability of the code, so I disabled the use of these
    registers.
- - Skip instruction followed by a 4 bytes instruction breaks stuff. This is also
-   because of a limitation of BN. BN only sends the raw bytes until the end of
+ - Skip instruction followed by a 4 bytes instruction potentially breaks.
+   This is a limitation of BN. BN only sends the raw bytes until the end of
    the basic block to the plugin, so there is no way we can figure out whether
    the length of the next instruction is 2 or 4 bytes. It seems to be 2 bytes
    most of the cases, so I hardcoded it to 2.
- - Flags aren't used (in lifting).
+ - Flags aren't used properly (in lifting).
 
 ## License
 

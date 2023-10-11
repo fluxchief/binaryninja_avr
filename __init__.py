@@ -12,12 +12,14 @@ from .instructions import RAM_SEGMENT_BEGIN
 #       getting in some nasty dependency loop.
 from .chips.iom16 import IOM16
 from .chips.iom168 import IOM168
+from .chips.iom328 import IOM328
 from .chips.iotn48 import IOTn48
 from .chips.iotn88 import IOTn88
 from .chips.iox128a4u import IOX128A4U
 ALL_CHIPS = [
     IOM16,
     IOM168,
+    IOM328,
     IOTn48,
     IOTn88,
     IOX128A4U,
