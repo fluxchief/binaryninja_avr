@@ -191,7 +191,7 @@ class AVR(binaryninja.Architecture):
             else:
                 next_ins_len = 2
                 binaryninja.log.log_warn(
-                    "0x{:X}: get_instruction_info: We only got 2 bytes but we need more to predict the length of the next instruction".format(self._addr))
+                    "0x{:X}: get_instruction_info: We only got 2 bytes but we need more to predict the length of the next instruction".format(addr))
 
             nfo.add_branch(
                 BranchType.TrueBranch,

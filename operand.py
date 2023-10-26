@@ -94,7 +94,7 @@ class OperandIORegister(Operand):
             1,
             il.const(
                 3,
-                self._value + RAM_SEGMENT_BEGIN
+                self._value + RAM_SEGMENT_BEGIN + 0x20
             )
         )
 
