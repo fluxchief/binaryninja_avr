@@ -29,13 +29,13 @@ ALL_CHIPS = [
 import binaryninja
 from binaryninja import (
     BranchType, SegmentFlag, SectionSemantics, SymbolType,
-    LowLevelILFlagCondition, FlagRole
+    LowLevelILFlagCondition, FlagRole, Symbol
 )
 
 
 class AVR(binaryninja.Architecture):
     name = 'AVR'
-    address_size = 3
+    address_size = 2
     default_int_size = 1
     # Instructions can only be 4 bytes in length MAX. However we need to have
     # the next instruction as well for some lifting reason, this is why we chose
@@ -69,6 +69,7 @@ class AVR(binaryninja.Architecture):
         'r19': binaryninja.RegisterInfo('r19', 1),
         'r20': binaryninja.RegisterInfo('r20', 1),
         'r21': binaryninja.RegisterInfo('r21', 1),
+
         'r22': binaryninja.RegisterInfo('r22', 1),
         'r23': binaryninja.RegisterInfo('r23', 1),
         'r24': binaryninja.RegisterInfo('r24', 1),
@@ -149,21 +150,17 @@ class AVR(binaryninja.Architecture):
     def get_instruction_info(self, data, addr):
         nfo = binaryninja.InstructionInfo()
         ins = self._get_instruction(data, addr)
-        if not ins:
-            # Failsafe: Assume 2 bytes if we couldn't decode the instruction.
-            # This should only happen if this is indeed an incorrect instruction
-            # but for some reason BN tries to disassemble random data sometimes
-            # and will show warnings if nfo.length == 0.
+        if not ins or ins.length() == 0:
             binaryninja.log.log_warn(
                 "Could not parse instruction @ 0x{:X}".format(
                     addr
                 )
             )
-            nfo.length = 2
-            return nfo
+
+            return None
+
 
         nfo.length = ins.length()
-
         if self._is_conditional_branch(ins):
             v = addr + ins.operands[0].immediate_value
             if v >= AVR.chip.ROM_SIZE:
@@ -186,10 +183,15 @@ class AVR(binaryninja.Architecture):
             instructions.Instruction_SBIC,
             instructions.Instruction_SBIS,
         ]:
+            next_ins_len = 2
             if len(data) > 2:
-                next_ins_len = self._get_instruction(data[2:], addr + 2).length()
+                ins_info = self._get_instruction(data[2:], addr + 2)
+                if ins_info:
+                    next_ins_len = ins_info.length()
+                else:
+                    binaryninja.log.log_warn(
+                        "0x{:X}: get_instruction_info: failed to decode next instruction".format(addr))
             else:
-                next_ins_len = 2
                 binaryninja.log.log_warn(
                     "0x{:X}: get_instruction_info: We only got 2 bytes but we need more to predict the length of the next instruction".format(addr))
 
@@ -216,6 +218,8 @@ class AVR(binaryninja.Architecture):
             nfo.add_branch(BranchType.FunctionReturn)
         elif (isinstance(ins, instructions.Instruction_RCALL)):
             v = addr + ins.operands[0].immediate_value
+            if v == (addr + 2):
+                return nfo
             if v >= AVR.chip.ROM_SIZE:
                 v -= AVR.chip.ROM_SIZE
             elif v < 0:
@@ -236,9 +240,7 @@ class AVR(binaryninja.Architecture):
                 BranchType.UnconditionalBranch,
                 v
             )
-        elif (isinstance(ins, instructions.Instruction_ICALL) or
-                isinstance(ins, instructions.Instruction_EICALL) or
-                isinstance(ins, instructions.Instruction_IJMP) or
+        elif (isinstance(ins, instructions.Instruction_IJMP) or
                 isinstance(ins, instructions.Instruction_EIJMP)):
             nfo.add_branch(BranchType.IndirectBranch)
         else:
@@ -274,7 +276,7 @@ class AVR(binaryninja.Architecture):
                 )
             )
             il.append(il.no_ret())
-            return 0
+            return None
 
     def is_never_branch_patch_available(self, data, addr):
         ins = self._get_instruction(data, addr)
@@ -305,9 +307,11 @@ class AVR(binaryninja.Architecture):
 
 class DefaultCallingConvention(binaryninja.CallingConvention):
     name = 'default'
-    int_arg_regs = ['r22', 'r23', 'r24', 'r25']
-    int_return_reg = 'r30'
-    high_int_return_reg = 'r31'
+    int_arg_regs = ['r25', 'r24', 'r23', 'r22', 'r21', 'r20', 'r19', 'r18', 'r17', 'r16', 'r15', 'r14', 'r13', 'r12', 'r11', 'r10', 'r9', 'r8']
+    callee_saved_regs = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r28', 'r29']
+    caller_saved_regs = ['r18', 'r19', 'r20', 'r21', 'r22', 'r23', 'r24', 'r25', 'r26', 'r27', 'r30', 'r31']
+    int_return_reg = 'r24'
+    high_int_return_reg = 'r25'
 
 
 class AVRBinaryView(binaryninja.BinaryView):
@@ -322,6 +326,18 @@ class AVRBinaryView(binaryninja.BinaryView):
         s = self.get_symbol_at(addr)
         if s:
             self.undefine_auto_symbol(s)
+
+    def _create_isr(self):
+        for i, v in enumerate(AVR.chip.INTERRUPT_VECTORS):
+            isr_addr = i * AVR.chip.INTERRUPT_VECTOR_SIZE
+            if isr_addr > AVR.chip.ROM_SIZE:
+                binaryninja.log.log_warn(f"ISR address out of bounds for ISR#{i} (0x{isr_addr:04x})")
+                continue
+
+            self.add_function(isr_addr)
+            if not self.get_symbol_at(isr_addr):
+                self.define_auto_symbol(
+                    Symbol(SymbolType.FunctionSymbol, isr_addr, "j_{}".format(v)))
 
     def init(self):
         load_settings = self.get_load_settings(self.name)
@@ -392,34 +408,7 @@ class AVRBinaryView(binaryninja.BinaryView):
                               AVR.chip.RAM_SIZE,
                               SectionSemantics.ReadWriteDataSectionSemantics)
 
-        # Create ISR once the analysis has finished
-        def _create_isr(event):
-            return
-            bv = event.view
-            for i, v in enumerate(AVR.chip.INTERRUPT_VECTORS):
-                isr_addr = i * AVR.chip.INTERRUPT_VECTOR_SIZE
-                if not self.get_function_at(isr_addr):
-                    bv.add_function(isr_addr)
-
-                f = bv.get_function_at(isr_addr)
-                f.name = "j_{}".format(v)
-                try:
-                    jmp_target = int(f.llil[0].operands[0])
-                except Exception as e:
-                    binaryninja.log.log_error(
-                        "Failed to parse jump target at 0x{:X} - incorrect chip? ({})"
-                        .format(isr_addr, e)
-                    )
-                    jmp_target = None
-
-                if jmp_target:
-                    if not self.get_function_at(jmp_target):
-                        bv.add_function(jmp_target)
-
-                    if self.get_function_at(jmp_target).name == "sub_{:x}".format(jmp_target):
-                        bv.get_function_at(jmp_target).name = v
-
-        self.add_analysis_completion_event(_create_isr)
+        self._create_isr()
         self.add_entry_point(0)
         return True
 
@@ -434,6 +423,10 @@ class AVRBinaryView(binaryninja.BinaryView):
 
     @classmethod
     def is_valid_for_data(self, data):
+        return False  # Must be force loaded with "Open with Options"
+
+    @classmethod
+    def is_force_loadable(self):
         return True
 
     @classmethod

@@ -7,8 +7,8 @@ class IOTn88(Chip):
     """
 
     CHIP_ALIASES = ["iotn88", "ATtiny88"]
-    RAM_SIZE = 256 * 2
-    ROM_SIZE = 4 * 1024 * 2
+    RAM_SIZE = 1024 * 16
+    ROM_SIZE = 32 * 1024
     INTERRUPT_VECTOR_SIZE = 2
 
     IO_REGISTERS = {

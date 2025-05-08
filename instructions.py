@@ -9,7 +9,7 @@ try:
     import binaryninja
     from binaryninja.log import log
     from binaryninja.enums import LogLevel
-    from binaryninja import InstructionTextToken, InstructionTextTokenType
+    from binaryninja import InstructionTextToken, InstructionTextTokenType, LowLevelILFlagCondition
 except Exception:
     class LogLevel:
         AlertLog = 'ALERT'
@@ -286,6 +286,7 @@ def get_reg_pair(il, rhigh, rlow):
 def get_xyz_register(il, chip, r, do_ramp=True):
     r = r.upper()
     assert r in ['X', 'Y', 'Z']
+    repls = {'X': ('r26', 'r27'), 'Y': ('r28', 'r29'), 'Z': ('r30', 'r31')}
     # TODO: We 'support' RAMPX..RAMZ, however BN is unable to handle it in a way
     # that an access to a reg is shown:
     #   [REG].b = X vs [GPIO0 + (([RAMPZ].b << 0x10) | addrof(X))])
@@ -530,7 +531,7 @@ class Instruction_BRCC(Instruction_BR_Abstract):
         return '1111 01kk kkkk k000'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 0), il.flag('C'))
+        return il.flag_condition(LowLevelILFlagCondition.LLFC_UGE)
 
 
 class Instruction_BRCS(Instruction_BR_Abstract):
@@ -539,7 +540,7 @@ class Instruction_BRCS(Instruction_BR_Abstract):
         return '1111 00kk kkkk k000'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 1), il.flag('C'))
+        return il.flag_condition(LowLevelILFlagCondition.LLFC_ULT)
 
 
 class Instruction_BREAK(Instruction):
@@ -557,7 +558,7 @@ class Instruction_BREQ(Instruction_BR_Abstract):
         return '1111 00kk kkkk k001'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 1), il.flag('Z'))
+        return il.flag_condition(LowLevelILFlagCondition.LLFC_E)
 
 
 class Instruction_BRGE(Instruction_BR_Abstract):
@@ -566,15 +567,7 @@ class Instruction_BRGE(Instruction_BR_Abstract):
         return '1111 01kk kkkk k100'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(
-            1,
-            il.xor_expr(
-                1,
-                il.flag('N'),
-                il.flag('V')
-            ),
-            il.const(1, 0)
-        )
+        return il.flag_condition(LowLevelILFlagCondition.LLFC_SGE)
 
 
 class Instruction_BRHC(Instruction_BR_Abstract):
@@ -619,7 +612,7 @@ class Instruction_BRLO(Instruction_BR_Abstract):
         return '1111 00kk kkkk k000'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 1), il.flag('C'))
+        return il.flag_condition(LowLevelILFlagCondition.LLFC_ULT)
 
 
 class Instruction_BRLT(Instruction_BR_Abstract):
@@ -628,16 +621,7 @@ class Instruction_BRLT(Instruction_BR_Abstract):
         return '1111 00kk kkkk k100'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(
-            1,
-            il.xor_expr(
-                1,
-                il.flag('N'),
-                il.flag('V')
-            ),
-            il.const(1, 1)
-        )
-
+        return il.flag_condition(LowLevelILFlagCondition.LLFC_SLT)
 
 class Instruction_BRMI(Instruction_BR_Abstract):
     @staticmethod
@@ -645,7 +629,7 @@ class Instruction_BRMI(Instruction_BR_Abstract):
         return '1111 00kk kkkk k010'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 1), il.flag('N'))
+        return il.flag_condition(LowLevelILFlagCondition.LLFC_NEG)
 
 
 class Instruction_BRNE(Instruction_BR_Abstract):
@@ -654,7 +638,7 @@ class Instruction_BRNE(Instruction_BR_Abstract):
         return '1111 01kk kkkk k001'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 0), il.flag('Z'))
+        return il.flag_condition(LowLevelILFlagCondition.LLFC_NE)
 
 
 class Instruction_BRPL(Instruction_BR_Abstract):
@@ -663,7 +647,7 @@ class Instruction_BRPL(Instruction_BR_Abstract):
         return '1111 01kk kkkk k010'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 0), il.flag('N'))
+        return il.flag_condition(LowLevelILFlagCondition.LLFC_POS)
 
 
 class Instruction_BRSH(Instruction_BR_Abstract):
@@ -672,7 +656,7 @@ class Instruction_BRSH(Instruction_BR_Abstract):
         return '1111 01kk kkkk k000'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 0), il.flag('C'))
+        return il.flag_condition(LowLevelILFlagCondition.LLFC_UGE)
 
 
 class Instruction_BRTC(Instruction_BR_Abstract):
@@ -699,7 +683,7 @@ class Instruction_BRVC(Instruction_BR_Abstract):
         return '1111 01kk kkkk k011'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 0), il.flag('V'))
+        return il.flag_condition(LowLevelILFlagCondition.LLFC_NO)
 
 
 class Instruction_BRVS(Instruction_BR_Abstract):
@@ -708,7 +692,7 @@ class Instruction_BRVS(Instruction_BR_Abstract):
         return '1111 00kk kkkk k011'.replace(' ', '')
 
     def get_llil_condition(self, il):
-        return il.compare_equal(1, il.const(1, 1), il.flag('V'))
+        return il.flag_condition(LowLevelILFlagCondition.LLFC_O)
 
 
 class Instruction_BST(Instruction):
@@ -2787,6 +2771,9 @@ class Instruction_RCALL(Instruction):
 
     def get_llil(self, il):
         v = self._operands[0].immediate_value + self._addr
+        if v == (self._addr + 2):
+            il.append(il.push(2, il.const(2, v)))
+            return
         if v >= self._chip.ROM_SIZE:
             v -= self._chip.ROM_SIZE
         elif v < 0:
@@ -3744,7 +3731,15 @@ class Instruction_ST_Y_III(Instruction):
 
 
 class Instruction_ST_Y_IV(Instruction):
-    register_order = ['r', 'q']
+    @classmethod
+    def args_to_operands(cls, chip, args):
+        r = args['r']
+        q = args['q']
+
+        return [
+            operand.OperandRegister(chip, r),
+            operand.OperandDirectAddress(chip, q + RAM_SEGMENT_BEGIN)
+        ]
 
     @classmethod
     def name(cls):
@@ -3802,12 +3797,8 @@ class Instruction_ST_Y_IV(Instruction):
                 1,
                 il.add(
                     3,
-                    il.const_pointer(3, RAM_SEGMENT_BEGIN),
-                    il.add(
-                        3,
-                        get_xyz_register(il, self._chip, 'Y'),
-                        self._operands[1].llil_read(il)
-                    )
+                    get_xyz_register(il, self._chip, 'Y'),
+                    self._operands[1].llil_read(il)
                 ),
                 self._operands[0].llil_read(il),
             )
