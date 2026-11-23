@@ -27,9 +27,30 @@ support and can be easily extended.
 lifting to `binja-avr`, the changes would have been to large so that I decided
 to write this plugin from scratch instead.
 
-3) Interrupt vectors are defined automatically. (currently disabled, see issue #5).
+3) Interrupt vectors are defined automatically.
 
 4) Xrefs on memory.
+
+5) ELF files are supported: the loader reads `PT_LOAD` program headers and
+   only maps the bytes that are actually resident in flash, instead of
+   treating the whole ELF file (including symbol tables/debug info) as the
+   flash image.
+
+## Loading a file / selecting the chip
+Because AVR binaries have no magic bytes to auto-detect, this plugin never
+auto-selects itself for a file. To load one:
+
+1) In Binary Ninja, use **File -> Open with Options...** (not a plain
+   double-click/drag-and-drop, which will open the file with the default
+   view instead).
+2) Pick **AVR** as the BinaryViewType.
+3) Under the options tree, find **AVR chip** (`avr.chip`) and select the
+   target chip from the dropdown before loading.
+
+If you don't see the `avr.chip` setting in the options tree, double check
+you're using "Open with Options" rather than a regular open, and that your
+Binary Ninja version is recent enough to support this plugin (see
+`plugin.json`'s `minimumbinaryninjaversion`).
 
 ## I found a bug!
 "Awesome"! Please create a ticket and don't forget to upload your sample there

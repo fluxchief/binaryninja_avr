@@ -33,6 +33,53 @@ from binaryninja import (
 )
 
 
+ELF_MAGIC = b"\x7fELF"
+ELF_PT_LOAD = 1
+
+
+def _parse_elf_rom_segments(raw):
+    """Parse the PT_LOAD program headers of an ELF32 LE file.
+
+    Returns a list of (address, file_offset, size) tuples describing the
+    bytes that actually end up resident in flash, or None if `raw` isn't a
+    32bit little endian ELF file.
+
+    We use `p_paddr` (the load/physical address) rather than `p_vaddr`,
+    since AVR toolchains map RAM-resident data (.data/.bss) into a virtual
+    address space starting at 0x800000 to keep it distinct from flash
+    addresses, while `p_paddr` keeps pointing at the actual flash offset
+    where the section's initial contents are stored. This mirrors what
+    `avr-objcopy` does to turn an ELF file into a raw flash image.
+    """
+    header = raw.read(0, 0x34)
+    if len(header) < 0x34 or header[:4] != ELF_MAGIC:
+        return None
+
+    ei_class, ei_data = header[4], header[5]
+    if ei_class != 1 or ei_data != 1:  # not 32bit / not little endian
+        return None
+
+    e_phoff, = struct.unpack_from('<I', header, 0x1C)
+    e_phentsize, = struct.unpack_from('<H', header, 0x2A)
+    e_phnum, = struct.unpack_from('<H', header, 0x2C)
+
+    segments = []
+    for i in range(e_phnum):
+        phdr = raw.read(e_phoff + i * e_phentsize, 32)
+        if len(phdr) < 32:
+            continue
+
+        (p_type, p_offset, _p_vaddr, p_paddr, p_filesz,
+         _p_memsz, _p_flags, _p_align) = struct.unpack_from('<IIIIIIII', phdr, 0)
+
+        if p_type != ELF_PT_LOAD or p_filesz == 0:
+            continue
+
+        segments.append((p_paddr, p_offset, p_filesz))
+
+    return segments
+
+
 class AVR(binaryninja.Architecture):
     name = 'AVR'
     address_size = 3
@@ -287,15 +334,15 @@ class AVR(binaryninja.Architecture):
     def always_branch(self, data, addr):
         ins = self._get_instruction(data, addr)
         dst = ins._operands[0]
-        v = (dst.immediate_value - 2) / 2
+        v = (dst.immediate_value - 2) // 2
         v = (v & 0xFFF) | 0xc000
         return struct.pack('<H', v)
 
     def never_branch(self, data, addr):
-        return "\x00\x00"
+        return b"\x00\x00"
 
     def convert_to_nop(self, data, addr):
-        return "\x00\x00"
+        return b"\x00\x00"
 
     """
     def get_flag_write_low_level_il(self, op, size, write_type, flag, operands, il):
@@ -341,18 +388,24 @@ class AVRBinaryView(binaryninja.BinaryView):
         #       open window / tab.
         AVR.chip = chip()
 
-        if self.raw.length > AVR.chip.ROM_SIZE:
+        rom_segments = _parse_elf_rom_segments(self.raw)
+        if rom_segments is None:
+            # Not an ELF file - treat the whole thing as a flat flash image.
+            rom_segments = [(0, 0, self.raw.length)]
+
+        if sum(size for _, _, size in rom_segments) > AVR.chip.ROM_SIZE:
             binaryninja.log.log_error("AVR: Rom too big for this chip")
             return False
 
         self.platform = binaryninja.Architecture[AVR.name].standalone_platform
         self.arch = binaryninja.Architecture[AVR.name]
 
-        self.add_auto_segment(
-            0, AVR.chip.ROM_SIZE,
-            0, self.raw.length,
-            SegmentFlag.SegmentReadable | SegmentFlag.SegmentExecutable
-        )
+        for addr, file_offset, size in rom_segments:
+            self.add_auto_segment(
+                addr, size,
+                file_offset, size,
+                SegmentFlag.SegmentReadable | SegmentFlag.SegmentExecutable
+            )
         self.add_auto_section("ROM", 0, AVR.chip.ROM_SIZE,
                               SectionSemantics.ReadOnlyCodeSectionSemantics)
 
@@ -394,7 +447,6 @@ class AVRBinaryView(binaryninja.BinaryView):
 
         # Create ISR once the analysis has finished
         def _create_isr(event):
-            return
             bv = event.view
             for i, v in enumerate(AVR.chip.INTERRUPT_VECTORS):
                 isr_addr = i * AVR.chip.INTERRUPT_VECTOR_SIZE
@@ -434,6 +486,16 @@ class AVRBinaryView(binaryninja.BinaryView):
 
     @classmethod
     def is_valid_for_data(self, data):
+        # Never auto-select this view for a file: AVR binaries have no
+        # magic bytes to fingerprint, so claiming validity for everything
+        # would hijack loading of unrelated file types (see issue #15) and
+        # can hang BN's analysis when it's forced onto random data (see
+        # issue #14). Users pick "AVR" explicitly via "Open with Options"
+        # instead, which `is_force_loadable` below enables.
+        return False
+
+    @classmethod
+    def is_force_loadable(self):
         return True
 
     @classmethod
